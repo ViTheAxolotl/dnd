@@ -34,7 +34,7 @@
 "use strict";
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, setMapValue, placeBefore, quickAction, setQuickAction, wait, getRandomItem, dbRef } from '../js/viMethods.js';
+import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, setMapValue, placeBefore, quickAction, setQuickAction, wait, getRandomItem, dbRef, safeReload, isValidKey } from '../js/viMethods.js';
 
 let map = setMapValue();
 let div = document.getElementById("gridMap");
@@ -272,8 +272,16 @@ function addTokens()
         }
     }
 
+    //A token id the database can't store (e.g. ".") would never get saved, so the page would
+    //reload forever trying to add it. Use the character's key instead.
+    if(!isValidKey(window.wholeChar[window.player]["token"]["id"]))
+    {
+        window.wholeChar[window.player]["token"]["id"] = window.player;
+    }
+
     if(!(Object.keys(window.wholeDB).includes(window.wholeChar[window.player]["token"]["id"])))
     {
+        let saves = [];
         if(window.wholeDB["spawnPoint"])
         {
             let negOrPos = [-1, 1];
@@ -288,7 +296,7 @@ function addTokens()
             window.wholeChar[window.player]["token"]["yPos"] = `${parseInt(window.wholeDB["spawnPoint"]["yPos"]) + diffrenceY}`;
         }
 
-        setDoc(`currentMap/${window.wholeChar[window.player]["token"]["id"]}`, window.wholeChar[window.player]["token"]);
+        saves.push(setDoc(`currentMap/${window.wholeChar[window.player]["token"]["id"]}`, window.wholeChar[window.player]["token"]));
 
         if(isSummonOn)
         {
@@ -307,14 +315,19 @@ function addTokens()
                             window.wholeSummons[key]["yPos"] = window.wholeDB["spawnPoint"]["yPos"];
                         }
 
-                        setDoc(`currentMap/${window.wholeSummons[key]["id"]}`, window.wholeSummons[key]);
+                        saves.push(setDoc(`currentMap/${window.wholeSummons[key]["id"]}`, window.wholeSummons[key]));
                     }
                 }
             }
         }
 
-        setDoc(`playerChar/${window.player}/currentToken`, window.wholeChar[window.player]["token"]["id"]);
-        location.reload();
+        saves.push(setDoc(`playerChar/${window.player}/token/id`, window.wholeChar[window.player]["token"]["id"]));
+        saves.push(setDoc(`playerChar/${window.player}/currentToken`, window.wholeChar[window.player]["token"]["id"]));
+
+        //Wait for the saves to reach the database before reloading (reloading straight away
+        //can cancel them, and the page would keep reloading without the token).
+        Promise.all(saves.map((save) => Promise.resolve(save).catch((error) => console.error("Couldn't add your token:", error))))
+            .then(() => safeReload("adding your token to the map"));
     }
 }
 
