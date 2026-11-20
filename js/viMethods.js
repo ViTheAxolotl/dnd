@@ -140,14 +140,14 @@ if(signedInUser)
     // Everyone follows the DM's campaign switch
     onValue(ref(database, "activeCampaign"), (snapshot) =>
     {
-        if((snapshot.val() || DEFAULT_CAMPAIGN) != campaign){location.reload();}
+        if((snapshot.val() || DEFAULT_CAMPAIGN) != campaign){safeReload("the live campaign changed");}
     });
 
     // The DM changed which character this login plays here
     onValue(ref(database, `campaigns/${campaign}/players/${login}`), (snapshot) =>
     {
         let now = login == DM_LOGIN ? DM_LOGIN : (snapshot.val() ?? null);
-        if(now != character && !window.campaignReloadHeld){location.reload();}
+        if(now != character && !window.campaignReloadHeld){safeReload("your character in this campaign changed");}
     });
 
     // No character in this campaign yet: make one on the character selection page
@@ -489,6 +489,45 @@ export function wait(seconds, fun)
 export function reload(seconds)
 {
     wait(seconds, function(){location.reload();})
+}
+
+/**
+ * Reloads the page, unless this tab has already reloaded itself several times in the
+ * last few seconds. Then it stops, shows `reason` in a red bar at the top of the page
+ * and logs it to the console, so a page can never get stuck reloading forever.
+ */
+export function safeReload(reason)
+{
+    let now = Date.now();
+    let log = [];
+    try{log = JSON.parse(sessionStorage.getItem("autoReloads") || "[]").filter((time) => now - time < 20000);}catch(e){}
+
+    if(log.length >= 3)
+    {
+        console.error("Stopped an automatic reload loop:", reason);
+
+        if(!document.getElementById("reloadLoopNotice"))
+        {
+            let notice = document.createElement("div");
+            notice.id = "reloadLoopNotice";
+            notice.style.cssText = "position:fixed;top:0;left:0;right:0;z-index:99999;background:#8b1e1e;color:#fff;padding:8px 12px;font:15px sans-serif;text-align:center;";
+            notice.textContent = `The page kept reloading, so it has stopped (${reason}). Refresh to try again.`;
+            document.body.appendChild(notice);
+        }
+        return;
+    }
+
+    log.push(now);
+    try{sessionStorage.setItem("autoReloads", JSON.stringify(log));}catch(e){}
+    location.reload();
+}
+
+/**
+ * True if `key` can be used as a database key (Firebase doesn't allow . # $ [ ] / or blank).
+ */
+export function isValidKey(key)
+{
+    return typeof key == "string" && key.trim() != "" && !/[.#$\[\]\/]/.test(key);
 }
 
 /**
