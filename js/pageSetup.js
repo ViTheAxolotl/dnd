@@ -102,7 +102,7 @@ function init()
 function navBarSetup()
 {
     nav[0].innerHTML = `<div class="container-fluid">
-        <a class="navbar-brand" href="${mainLocation}oldIndex.html"><img src = "${imageLocation}UP.png" title = "Infused" alt = "Infused" width = "70" height = "70"/></a>
+        <a class="navbar-brand" href="${mainLocation}oldIndex.html"><img class = "navD20" src = "${imageLocation}d20.svg" title = "Home" alt = "Home" width = "70" height = "70"/></a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
             <span class="navbar-toggler-icon"></span>
         </button>

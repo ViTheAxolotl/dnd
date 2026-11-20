@@ -1948,3 +1948,16 @@ body.embedded #siteList > #story
 {
     .tokenLoadingDie, .tokenLoadingDots span { animation: none; opacity: 1; }
 }
+
+/* ---- Navbar d20 logo: a soft glow, and a full spin on hover ---- */
+.navD20
+{
+    filter: drop-shadow(0 0 6px var(--brass-glow));
+    transition: transform .6s cubic-bezier(.45, .05, .55, .95), filter .3s;
+}
+.navbar-brand:hover .navD20
+{
+    transform: rotate(360deg);
+    filter: drop-shadow(0 0 10px var(--brass-glow));
+}
+@media (prefers-reduced-motion: reduce) { .navD20 { transition: none; } }
