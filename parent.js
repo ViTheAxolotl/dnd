@@ -84,14 +84,16 @@ onValue(customsRef, (snapshot) =>
 // The campaign layer (viMethods.js) already knows this login's character, so set it
 // before any data arrives; the map needs it to draw.
 window.player = character;
-let charsArrived = false; //The map waits for character data before its first draw
+let charsArrived = false; //The map is only drawn once both the tokens and the
+let mapArrived = false;   //characters have loaded (whichever comes second draws it)
 
 const currentMapRef = dbRef('currentMap/');
 onValue(currentMapRef, (snapshot) => 
 {
     const data = snapshot.val();
-    wholeDB = data;
-    if(charsArrived){setWholeDB(data);}
+    wholeDB = data ?? {};
+    mapArrived = true;
+    if(charsArrived){setWholeDB(wholeDB);}
 });
 
 const charRef = dbRef('playerChar/');
@@ -105,7 +107,7 @@ onValue(charRef, (snapshot) =>
     setWholeCharCont(data);
 
     //First character data: now the map can be drawn (if the map data came first)
-    if(!charsArrived){charsArrived = true; if(wholeDB){setWholeDB(wholeDB);}}
+    if(!charsArrived){charsArrived = true; if(mapArrived){setWholeDB(wholeDB);}}
 });
 
 const currentTORef = dbRef('currentTO/');
