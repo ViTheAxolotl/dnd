@@ -2036,7 +2036,7 @@ body.embedded #cover p
 /* ---- Dashboard: Status line + "Change Status" menu ---- */
 #titles { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 #titles #title { margin: 5px 0 0; }
-#statusMenuBtn { width: auto; padding: 4px 18px; margin: 0; }
+#statusMenuBtn { align-self: stretch; width: 100%; margin-top: 0; } /* full row, like Change Token */
 
 #statusMenu
 {

@@ -974,7 +974,7 @@ function drawStatusMenu()
 
     box.appendChild(cards);
 
-    let done = el("button", "gridButton statusDone", "Done");
+    let done = el("button", "gridButton statusDone", "Save");
     done.onclick = closeStatusMenu;
     box.appendChild(done);
 
