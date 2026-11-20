@@ -9,15 +9,17 @@
  *      (playerChar/<Player>/token), then sends them to the dashboard.
  * If they already had a token, its border, HP, title and map position are kept.
  *
- * Custom images: "Manage/Add Imgs" lets a player upload their own picture. It's compressed
- * in the browser, stored in Firebase Storage under images/map/tokens/, and listed in
- * files/tokens/<nickname>-. Token names end in "-" by convention.
+ * Custom images: "Manage Imgs" lets a player upload their own picture (file picker + Upload).
+ * It's compressed in the browser, stored in Firebase Storage under images/map/tokens/, and
+ * listed in files/tokens/<name>- in the Characters category. Token names end in "-".
  */
 
 "use strict";
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, clenseInput, deleteDoc, reload, placeBefore, tokenCategory, CHARACTER_CATEGORY, dbRef, character, login, campaign, holdCampaignReload, blankCharacter, sampleStats, titleWithName, isValidKey, DM_LOGIN } from './viMethods.js';
+import { toTitleCase, auth, database, setDoc, clenseInput, deleteDoc, reload, placeBefore, tokenCategory, CHARACTER_CATEGORY, dbRef, character, login, campaign, holdCampaignReload, blankCharacter, sampleStats, titleWithName, isValidKey, DM_LOGIN, storage } from './viMethods.js';
+import { uploadBytes, getDownloadURL, ref as sRef } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js';
+import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
 
 let player;
 let wholeChars = {};
@@ -247,8 +249,9 @@ function addCustomImgs()
 }
 
 /**
- * "Manage/Add Imgs": replaces the page with the player's custom images (each with a
- * Delete button) and a form to upload a new one with a nickname.
+ * "Manage Imgs": replaces the page with an upload form: file picker, a name for the
+ * picture (filled in from the file name, editable), Cancel and Upload. The picture is
+ * listed under that name plus "-" (Tiger -> "Tiger-").
  */
 function handleCustomImg()
 {
@@ -257,74 +260,44 @@ function handleCustomImg()
         div.lastChild.remove();
     }
 
-    let customsDiv = document.createElement("div");
+    let form = document.createElement("div");
+    form.classList.add("center", "uploadToken");
 
-    for(let custom of Object.keys(wholeCustom))
-    {
-        if(wholeCustom[custom]["player"] == player)
-        {
-            let personDiv = document.createElement("div");
-            personDiv.classList.add("center");
-            
-            let person = document.createElement("img");
-            person.id = wholeCustom[custom]["name"];
-            person.src = wholeCustom[custom]["src"];
-            person.classList = "char customImg";
-            person.style.width = "73px";
-            person.style.height = "73px";
-            personDiv.appendChild(person);
-            person.style.margin = "10px";
+    let fileInput = document.createElement("input");
+    fileInput.type = "file";
+    fileInput.accept = "image/*";
+    fileInput.id = "CustomFileInput";
 
-            let deleteBtn = document.createElement("button");
-            deleteBtn.classList = "gridButton";
-            deleteBtn.innerHTML = "Delete Custom Img";
-            deleteBtn.onclick = handleDeleteCustom;
-            deleteBtn.id = wholeCustom[custom]["name"];
-            personDiv.appendChild(deleteBtn);
-            customsDiv.appendChild(personDiv);
-            deleteBtn.style.margin = "10px";
-        }
-    }
+    //The picture's name; filled in from the file name when one is picked, and editable
+    let nameInput = document.createElement("input");
+    nameInput.id = "CustomName";
+    nameInput.placeholder = "Picture name (e.g. Tiger)";
+    fileInput.onchange = () => {if(fileInput.files?.[0]){nameInput.value = tokenNameFromFile(fileInput.files[0].name).slice(0, -1);}};
 
-    let names = ["Url", "Nickname"];
-    let objects = [document.createElement("input"), document.createElement("input")];
-    let newDiv = document.createElement("div");
-    newDiv.classList.add("center");
+    let buttons = document.createElement("div");
+    buttons.classList.add("uploadTokenButtons");
 
-    for(let i = 0; i < names.length; i++)
-    {
-        let span = document.createElement("span");
-        span.style.display = "block";
-
-        let label = document.createElement("h6");
-        label.innerHTML = `${names[i]}:`;
-        label.style.display = "inline";
-        label.style.margin = "5px";
-
-        objects[i].id = names[i];
-        objects[i].style.margin = "5px";
-        objects[i].style.width = "40%";
-        
-        newDiv.appendChild(label);
-        newDiv.appendChild(objects[i]);
-        newDiv.appendChild(span);
-    }
-
-    let createBtn = document.createElement("button");
-    createBtn.innerHTML = "Create Custom Img";
-    createBtn.onclick = handleCreateCustom;
-    createBtn.style.margin = "5px";
+    let uploadBtn = document.createElement("button");
+    uploadBtn.classList = "gridButton";
+    uploadBtn.innerHTML = "Upload";
+    uploadBtn.onclick = handleCreateCustom;
 
     let cancelBtn = document.createElement("button");
+    cancelBtn.classList = "gridButton";
     cancelBtn.innerHTML = "Cancel";
-    cancelBtn.onclick = function () {reload(.001);};
-    cancelBtn.style.margin = "5px";
+    cancelBtn.onclick = () => reload(.001); //Back to the character list
 
-    newDiv.appendChild(createBtn);
-    newDiv.appendChild(cancelBtn);
-    customsDiv.appendChild(newDiv);
+    let status = document.createElement("p");
+    status.id = "uploadStatus";
+    status.classList.add("campaignStatus");
 
-    div.appendChild(customsDiv);
+    buttons.appendChild(cancelBtn);
+    buttons.appendChild(uploadBtn);
+    form.appendChild(fileInput);
+    form.appendChild(nameInput);
+    form.appendChild(buttons);
+    form.appendChild(status);
+    div.appendChild(form);
 }
 
 /**
@@ -351,21 +324,60 @@ function handleDeleteCustom()
 }
 
 /**
- * Uploads a new custom token picture: checks a file and nickname were given, cleans the
- * nickname, compresses the image to about 0.2 MB, uploads it to Storage, saves the
- * link under files/tokens/<nickname>-, makes it this player's token, and reloads.
+ * A picture's name from a file name: "Big Tiger.png" -> "BigTiger-". Only letters,
+ * numbers, _ and - are kept (the database can't store . # $ [ ] / in a name).
  */
-function handleCreateCustom()
+function tokenNameFromFile(fileName)
 {
-    let url = document.getElementById("Url").value;
-    let nickname = document.getElementById("Nickname").value;
-    
-    url = clenseInput(url);
-    nickname = clenseInput(nickname);
-    nickname = "custom-" + nickname;
+    let base = String(fileName ?? "").replace(/\.[^.]*$/, "");
+    base = base.replace(/[^A-Za-z0-9_-]/g, "").replace(/-+$/, "");
+    return base == "" ? "" : base + "-";
+}
 
-    setDoc(`customImages/${nickname}`, {"name" : nickname, "player" : player, "src" : url});
-    reload(.5);
+/**
+ * Upload: compresses the picked picture (about 0.2 MB, 1024px), stores it in Firebase
+ * Storage under images/map/tokens/<name>-, lists it in files/tokens/<name>- in the
+ * Characters category, then reloads so it can be picked. A name that's already taken
+ * is refused, so nobody's picture gets replaced.
+ */
+async function handleCreateCustom()
+{
+    let fileInput = document.getElementById("CustomFileInput");
+    let status = document.getElementById("uploadStatus");
+    let uploadBtn = this;
+    let say = (text, isError) => {status.textContent = text; status.classList.toggle("error", !!isError);};
+
+    let file = fileInput.files?.[0];
+    if(!file){say("Pick a picture first.", true); return;}
+
+    let typed = document.getElementById("CustomName").value;
+    if(typed.trim() == ""){say("Give the picture a name.", true); return;}
+    let name = tokenNameFromFile(typed + ".x"); //Same clean-up as a file name
+    if(name == ""){say("Use letters or numbers in the name.", true); return;}
+    if(imgs["tokens"]?.[name]){say(`There's already a picture called ${name.slice(0, -1)}. Pick another name.`, true); return;}
+
+    uploadBtn.disabled = true;
+    say("Uploading...");
+
+    try
+    {
+        const compressed = await imageCompression(file, {maxSizeMB: 0.2, maxWidthOrHeight: 1024, useWebWorker: true});
+        const snapshot = await uploadBytes(sRef(storage, `images/map/tokens/${name}`), compressed);
+        const url = await getDownloadURL(snapshot.ref);
+
+        await setDoc(`files/tokens/${name}`, url);
+        await setDoc(`files/tokenCategories/${name}`, CHARACTER_CATEGORY); //Player uploads are characters
+
+        say(`Uploaded ${name.slice(0, -1)}. Reloading...`);
+        reload(.5);
+    }
+
+    catch(error)
+    {
+        console.error("Token upload failed:", error);
+        say("The upload didn't work. Try again, or try a smaller picture.", true);
+        uploadBtn.disabled = false;
+    }
 }
 
 /**
