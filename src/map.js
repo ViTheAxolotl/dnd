@@ -34,7 +34,7 @@
 "use strict";
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, setMapValue, placeBefore, quickAction, setQuickAction, wait, getRandomItem, dbRef, safeReload, isValidKey } from '../js/viMethods.js';
+import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, setMapValue, placeBefore, quickAction, setQuickAction, wait, getRandomItem, dbRef, safeReload, isValidKey, titleWithName, shiftRow } from '../js/viMethods.js';
 
 let map = setMapValue();
 let div = document.getElementById("gridMap");
@@ -292,8 +292,14 @@ function addTokens()
             diffrenceX = getRandomItem(negOrPos) * getRandomItem(differential);
             diffrenceY = getRandomItem(negOrPos) * getRandomItem(differential);
 
-            window.wholeChar[window.player]["token"]["xPos"] = `${parseInt(window.wholeDB["spawnPoint"]["xPos"]) + diffrenceX}`;
-            window.wholeChar[window.player]["token"]["yPos"] = `${parseInt(window.wholeDB["spawnPoint"]["yPos"]) + diffrenceY}`;
+            window.wholeChar[window.player]["token"]["xPos"] = `${Math.min(26, Math.max(1, parseInt(window.wholeDB["spawnPoint"]["xPos"]) + diffrenceX))}`;
+            window.wholeChar[window.player]["token"]["yPos"] = shiftRow(window.wholeDB["spawnPoint"]["yPos"], diffrenceY); //Rows are letters
+        }
+
+        //The title must name the player (it's how they control their own summons)
+        if(window.player != "Vi")
+        {
+            window.wholeChar[window.player]["token"]["title"] = titleWithName(window.wholeChar[window.player]["token"]["title"], window.player);
         }
 
         saves.push(setDoc(`currentMap/${window.wholeChar[window.player]["token"]["id"]}`, window.wholeChar[window.player]["token"]));
@@ -321,7 +327,7 @@ function addTokens()
             }
         }
 
-        saves.push(setDoc(`playerChar/${window.player}/token/id`, window.wholeChar[window.player]["token"]["id"]));
+        saves.push(setDoc(`playerChar/${window.player}/token`, window.wholeChar[window.player]["token"]));
         saves.push(setDoc(`playerChar/${window.player}/currentToken`, window.wholeChar[window.player]["token"]["id"]));
 
         //Wait for the saves to reach the database before reloading (reloading straight away
