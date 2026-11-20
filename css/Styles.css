@@ -1588,6 +1588,13 @@ body.embedded #siteList > #story
     outline: 1px solid var(--brass-dim);
 }
 
+/* Skill tree: the round covers over each skill get no picture frame */
+#map img.skillCover
+{
+    border: none;
+    outline: none;
+}
+
 #itemImg
 {
     display: block;
