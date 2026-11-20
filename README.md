@@ -1,2 +1,1 @@
-# dnd
-Master D&amp;D Website allows me to setup campaigns to switch between
+# Infused Website to Hold DnD Campaign
