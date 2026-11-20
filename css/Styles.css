@@ -1968,3 +1968,31 @@ body.embedded #siteList > #story
     filter: drop-shadow(0 0 10px var(--brass-glow));
 }
 @media (prefers-reduced-motion: reduce) { .navD20 { transition: none; } }
+
+/* ---- Skill tree popup (skill info / help): text near the top, buttons at the bottom ---- */
+body.embedded #cover:not(.invisible)
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+    padding: 8vh 20px 28px;
+    text-align: center;
+}
+body.embedded #cover p
+{
+    max-width: 640px;
+    margin: 0 auto 10px;
+    text-align: left;   /* the block stays centred; its lines read from the left */
+    text-indent: 2em;
+}
+.skillPopupButtons
+{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    width: min(560px, 100%);
+    margin-top: auto; /* buttons sit at the bottom of the popup */
+}
+.skillPopupButtons .gridButton { flex: 1 1 0; margin: 0; }
