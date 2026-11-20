@@ -377,7 +377,7 @@ function addBorders()
     {
         let color = borders[i];
         borders[i] = document.createElement("img");
-        borders[i].src = `images/map/tokens/${color}Border.png`;
+        borders[i].src = imgs["borders"][color]; //Border pictures live in Firebase Storage (files/borders)
         borders[i].id = color;
         borders[i].classList = "bord";
         borders[i].onclick = handleChoose;
