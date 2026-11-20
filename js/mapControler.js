@@ -228,6 +228,7 @@ function setMainVaribles()
 {   
     changeTokenBtn = document.getElementById("changeTokenBtn");
     changeTokenBtn.onclick = handleChangeToken;
+    document.getElementById("statusMenuBtn").onclick = openStatusMenu;
     buttons = document.getElementsByClassName("inOrDe");
     playerName.innerHTML = toTitleCase(window.wholeChar[window.player]["currentToken"]);
     currentCharacter = document.getElementsByClassName(window.wholeChar[window.player]["currentToken"]);
@@ -737,43 +738,18 @@ function changeValue()
             break;
         
         case "title":
-            let title = document.getElementById("title");
-            let status = document.getElementById("status");
+        {
+            //Command line: + adds the typed keyword(s), - removes them (commas separate several)
+            let typed = statusParts(toTitleCase(document.getElementById("status").value));
+            let parts = statusParts(document.getElementById("title").innerHTML);
 
-            if(modifier == "+") //If plus button is clicked
-            {
-                title.innerHTML += ` ${toTitleCase(status.value)},`; //Adds the key word written to your title
-            }
+            if(modifier == "+"){for(let word of typed){if(!parts.includes(word)){parts.push(word);}}}
+            else{parts = parts.filter((part) => !typed.includes(part));}
 
-            else //minus button is clicked
-            {
-                title.innerHTML = title.innerHTML.replace(` ${toTitleCase(status.value)},`, ""); //Removes the given keyword from the title
-            }
-
-            if(window.player != "Vi")
-            {
-                if(!title.innerHTML.includes(window.player))
-                {
-                    title.innerHTML = `Status: ${window.player},`
-                    
-                    if(modifier == "+") //If plus button is clicked
-                    {
-                        title.innerHTML += ` ${toTitleCase(status.value)},`; //Adds the key word written to your title
-                    }
-                }
-
-                if(!title.innerHTML.includes("Infused"))
-                {
-                    title.innerHTML = title.innerHTML.replace(",", ", Infused,");
-                }
-            }
-
-            title = title.innerHTML.slice(title.innerHTML.indexOf(": ") + 2).trim();
-            if(title == ""){title = " ";} //Removing the last keyword: keep a blank status like every other token, never ""
-            setDoc(`currentMap/${currentToken}/title`, title);
-            if(currentToken == window.player){setDoc(`playerChar/${window.player}/token/title`, title);}
-            if(isSummonToken(currentCharacter[0].classList[1])){setDoc(`playerChar/Vi/summons/${currentCharacter[0].classList[1]}/title`, title);}
+            document.getElementById("status").value = ""; //Ready for the next one
+            commitStatus(parts);
             break;
+        }
         
         case "turn":
             if(modifier == "↓") //If plus button is clicked
@@ -787,6 +763,222 @@ function changeValue()
             }
             return;
     }
+}
+
+/* ------------------------------------------------------------------------------------ *
+ *  Status menu                                                                          *
+ *  The "Change Status" button under the Status line opens a picker for the token        *
+ *  keywords (the title words map.js reads: Large, Top, Rotate 45, Dup X4...).           *
+ *  Everything saves straight away. The command line at the bottom still takes any       *
+ *  keyword by hand with + / -.                                                          *
+ * ------------------------------------------------------------------------------------ */
+
+/** "Status: Mistah, Large, Rotate 45," (or a bare title) -> ["Mistah", "Large", "Rotate 45"] */
+function statusParts(text)
+{
+    let body = String(text ?? "");
+    if(body.includes(":")){body = body.slice(body.indexOf(":") + 1);}
+    return body.split(",").map((part) => part.trim()).filter((part) => part != "" && part != ".");
+}
+
+/**
+ * Saves a new status for the token being controlled: updates the Status line, the map
+ * token, the character's own token and (for summons) the DM's summon list. A player's
+ * status always starts with their name (it's how they control their summons), plus
+ * "Infused" in the Infused campaign.
+ */
+function commitStatus(parts)
+{
+    parts = parts.map((part) => part.trim()).filter((part) => part != "" && part != ".");
+
+    if(window.player != "Vi")
+    {
+        parts = parts.filter((part) => part != window.player);
+        parts.unshift(window.player);
+        if(window.campaign == "infused" && !parts.includes("Infused")){parts.splice(1, 0, "Infused");}
+    }
+
+    let title = parts.length ? parts.join(", ") + "," : " "; //Never "": a blank status is " "
+    document.getElementById("title").innerHTML = "Status: " + title.trim();
+
+    setDoc(`currentMap/${currentToken}/title`, title);
+    if(currentToken == window.player){setDoc(`playerChar/${window.player}/token/title`, title);}
+    if(isSummonToken(currentCharacter[0]?.classList[1])){setDoc(`playerChar/Vi/summons/${currentCharacter[0].classList[1]}/title`, title);}
+
+    if(document.getElementById("statusMenu")){drawStatusMenu();}
+}
+
+// The pickable keywords. match: finds this keyword among the status words. make: the word to
+// save. nums: number boxes (value, min, max). dm: only shown to Vi.
+const STATUS_CHIPS =
+[
+    {card: "look", label: "Invisible", hint: "Only you can see your token", match: /^Invisible$/i, make: () => "Invisible"},
+    {card: "look", label: "Hidden", hint: "Only the DM and the token's owner see it", match: /^Hidden$/i, make: () => "Hidden", dm: true},
+    {card: "look", label: "Flip X", hint: "Mirror left to right", match: /^Flip\s*X$/i, make: () => "FlipX"},
+    {card: "look", label: "Flip Y", hint: "Mirror top to bottom", match: /^Flip\s*Y$/i, make: () => "FlipY"},
+    {card: "look", label: "Rotate", unit: "°", hint: "Turn clockwise (negative turns the other way)", match: /^Rot(?:ate)?\s*(-?\d+(?:\.\d+)?)$/i, nums: [[90, -360, 360]], make: (d) => `Rotate ${d}`},
+    {card: "look", label: "Opacity", unit: "%", hint: "How see-through it is", match: /^Opac\s*(\d+)$/i, nums: [[50, 5, 95]], make: (o) => `Opac${String(o).padStart(2, "0")}`},
+    {card: "repeat", label: "Dup X", hint: "Copies to the right", match: /^Dup\s*X\s*(\d+)$/i, nums: [[2, 1, 25]], make: (n) => `Dup X${n}`},
+    {card: "repeat", label: "Dup Y", hint: "Copies downward", match: /^Dup\s*Y\s*(\d+)$/i, nums: [[2, 1, 25]], make: (n) => `Dup Y${n}`},
+    {card: "repeat", label: "Dup XY", join: "×", hint: "Fills a box: wide × tall", match: /^Dup\s*XY\s*(\d+)(?:\s*x\s*(\d+))?$/i, nums: [[3, 1, 25], [3, 1, 25]], make: (w, h) => w == h ? `Dup XY${w}` : `Dup XY${w}x${h}`},
+    {card: "repeat", label: "Exp X", hint: "Stretches to the right", match: /^Exp\s*X\s*(\d+)$/i, nums: [[2, 1, 26]], make: (n) => `Exp X${n}`},
+    {card: "repeat", label: "Exp Y", hint: "Stretches downward", match: /^Exp\s*Y\s*(\d+)$/i, nums: [[2, 1, 26]], make: (n) => `Exp Y${n}`}
+];
+
+// Size and layer: one choice each, picked from a dropdown
+const STATUS_SELECTS =
+[
+    {label: "Size", options: ["Medium", "Large", "Huge", "Gargantuan"], hint: "Large 2×2, Huge 3×3, Gargantuan 4×4"},
+    {label: "Layer", options: ["Normal", "Top", "Bottom"], hint: "Above or below other tokens"}
+];
+
+/** Opens the status menu (a popup over the dashboard). */
+function openStatusMenu()
+{
+    if(!document.getElementById("statusMenu"))
+    {
+        let overlay = document.createElement("div");
+        overlay.id = "statusMenu";
+        overlay.onclick = (e) => {if(e.target == overlay){closeStatusMenu();}}; //Click outside to close
+        document.body.appendChild(overlay);
+        document.addEventListener("keydown", statusMenuKeys);
+    }
+
+    drawStatusMenu();
+}
+
+function closeStatusMenu()
+{
+    document.getElementById("statusMenu")?.remove();
+    document.removeEventListener("keydown", statusMenuKeys);
+}
+
+function statusMenuKeys(e)
+{
+    if(e.key == "Escape"){closeStatusMenu();}
+}
+
+/** (Re)draws the menu from the current Status line. */
+function drawStatusMenu()
+{
+    let overlay = document.getElementById("statusMenu");
+    let parts = statusParts(document.getElementById("title").innerHTML);
+    let typedBefore = document.getElementById("status")?.value ?? "";
+
+    let el = (tag, cls, text) => {let e = document.createElement(tag); if(cls){e.className = cls;} if(text != undefined){e.textContent = text;} return e;};
+    let card = (title) => {let c = el("section", "statusCard"); c.appendChild(el("h4", "", title)); return c;};
+
+    let box = el("div", "statusBox");
+    box.appendChild(el("h3", "", "Status"));
+
+    //What's on now
+    let current = el("div", "statusCurrent");
+    let shown = parts.filter((part) => window.player == "Vi" || (part != window.player && part != "Infused"));
+    if(shown.length == 0){current.appendChild(el("span", "statusNone", "No keywords on"));}
+    for(let part of shown){current.appendChild(el("span", "statusTag", part));}
+    box.appendChild(current);
+
+    let cards = el("div", "statusCards");
+
+    //Size & Position
+    let sizeCard = card("Size & Position");
+    for(let pick of STATUS_SELECTS)
+    {
+        let row = el("label", "statusRow");
+        row.appendChild(el("span", "statusLabel", pick.label));
+        let select = el("select");
+        for(let option of pick.options){select.appendChild(new Option(option, option));}
+        select.value = pick.options.find((option) => parts.includes(option)) ?? pick.options[0];
+        select.onchange = () =>
+        {
+            let rest = parts.filter((part) => !pick.options.includes(part));
+            if(select.selectedIndex > 0){rest.push(select.value);} //The first option means "none"
+            commitStatus(rest);
+        };
+        row.appendChild(select);
+        row.title = pick.hint;
+        sizeCard.appendChild(row);
+    }
+    cards.appendChild(sizeCard);
+
+    //Look, and Repeat & Stretch: toggle chips
+    for(let [key, heading] of [["look", "Look"], ["repeat", "Repeat & Stretch"]])
+    {
+        let chipCard = card(heading);
+
+        for(let chip of STATUS_CHIPS.filter((c) => c.card == key && (!c.dm || window.player == "Vi")))
+        {
+            let found = parts.find((part) => chip.match.test(part));
+            let values = (chip.nums ?? []).map(([start], i) =>
+            {
+                let m = found?.match(chip.match);
+                return m?.[i + 1] ?? (i == 1 ? m?.[1] : undefined) ?? start; //Dup XY3 = 3 × 3
+            });
+
+            let row = el("div", "statusRow");
+            let button = el("button", "statusChip" + (found ? " on" : ""), chip.label);
+            button.title = chip.hint;
+            row.appendChild(button);
+
+            let inputs = [];
+            (chip.nums ?? []).forEach(([start, min, max], i) =>
+            {
+                if(i > 0){row.appendChild(el("span", "statusJoin", chip.join ?? ""));}
+                let input = el("input", "statusNum");
+                input.type = "number";
+                input.min = min; input.max = max; input.value = values[i];
+                input.setAttribute("aria-label", `${chip.label} ${i == 0 ? "" : "height"}`.trim());
+                inputs.push(input);
+                row.appendChild(input);
+            });
+            if(chip.unit){row.appendChild(el("span", "statusJoin", chip.unit));}
+
+            //The keyword built from the boxes (each kept inside its min/max)
+            let build = () => chip.make(...inputs.map((input, i) =>
+            {
+                let [start, min, max] = chip.nums[i];
+                let n = Math.round(parseFloat(input.value));
+                return isNaN(n) ? start : Math.min(max, Math.max(min, n));
+            }));
+            let without = () => parts.filter((part) => !chip.match.test(part));
+
+            button.onclick = () => commitStatus(found ? without() : [...without(), build()]);
+            for(let input of inputs){input.onchange = () => {if(found){commitStatus([...without(), build()]);}};} //Changing a number updates it if it's on
+
+            chipCard.appendChild(row);
+        }
+
+        cards.appendChild(chipCard);
+    }
+
+    //Command line: any keyword by hand
+    let lineCard = card("Command line");
+    lineCard.classList.add("statusLine");
+    let line = el("div", "statusRow");
+    let minus = el("button", "inOrDe", "-");
+    let input = el("input");
+    let plus = el("button", "inOrDe", "+");
+    minus.name = plus.name = "title";
+    minus.onclick = plus.onclick = changeValue;
+    input.id = "status";
+    input.type = "text";
+    input.placeholder = "e.g. Rotate 45, Large";
+    input.value = typedBefore;
+    input.onkeydown = (e) => {if(e.key == "Enter"){plus.click();}};
+    line.appendChild(minus);
+    line.appendChild(input);
+    line.appendChild(plus);
+    lineCard.appendChild(line);
+    lineCard.appendChild(el("p", "statusHint", "+ adds what you type, - removes it. Separate several with commas."));
+    cards.appendChild(lineCard);
+
+    box.appendChild(cards);
+
+    let done = el("button", "gridButton statusDone", "Done");
+    done.onclick = closeStatusMenu;
+    box.appendChild(done);
+
+    overlay.replaceChildren(box);
 }
 
 /**

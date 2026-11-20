@@ -2032,3 +2032,99 @@ body.embedded #cover p
 .uploadToken #CustomName { width: min(320px, 100%); text-align: center; }
 .uploadTokenButtons { display: flex; gap: 10px; width: min(420px, 100%); }
 .uploadTokenButtons .gridButton { flex: 1 1 0; margin: 0; }
+
+/* ---- Dashboard: Status line + "Change Status" menu ---- */
+#titles { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+#titles #title { margin: 5px 0 0; }
+#statusMenuBtn { width: auto; padding: 4px 18px; margin: 0; }
+
+#statusMenu
+{
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(14, 10, 8, .8);
+}
+.statusBox
+{
+    width: min(920px, 100%);
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 18px 22px 20px;
+    background: var(--oak);
+    border-radius: var(--radius);
+    box-shadow: var(--frame);
+    color: var(--parchment);
+    text-align: center;
+}
+.statusBox h3 { margin: 0 0 8px; font-family: var(--font-display); color: #e6c77e; }
+.statusCurrent { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; margin-bottom: 14px; min-height: 28px; }
+.statusTag
+{
+    padding: 2px 10px;
+    border: 1px solid var(--brass-dim);
+    border-radius: 999px;
+    background: var(--oak-deep);
+    font-size: .95rem;
+}
+.statusNone { color: var(--parchment-dim); font-style: italic; }
+.statusCards
+{
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+    text-align: left;
+}
+.statusCard
+{
+    padding: 10px 14px 12px;
+    background: var(--oak-deep);
+    border: 1px solid var(--brass-dim);
+    border-radius: var(--radius);
+}
+.statusCard h4
+{
+    margin: 0 0 8px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--brass-dim);
+    font-family: var(--font-display);
+    font-size: 1.05rem;
+    color: #e6c77e;
+    text-align: center;
+}
+.statusRow { display: flex; align-items: center; gap: 8px; margin: 6px 0; }
+.statusLabel { width: 56px; }
+.statusRow select { flex: 1; min-width: 0; }
+.statusChip
+{
+    min-width: 92px;
+    padding: 4px 12px;
+    border: 1px solid var(--brass-dim);
+    border-radius: 999px;
+    background: var(--stone);
+    color: var(--parchment);
+    font-family: var(--font-body);
+    cursor: pointer;
+    transition: background .15s, border-color .15s, box-shadow .15s;
+}
+.statusChip:hover { border-color: var(--brass); }
+.statusChip.on
+{
+    background: var(--leather-hi);
+    border-color: var(--brass);
+    box-shadow: 0 0 8px var(--brass-glow);
+    color: #fff3d6;
+}
+.statusChip.on::before { content: "✓ "; }
+.statusNum { width: 64px !important; text-align: center; }
+.statusJoin { color: var(--parchment-dim); }
+.statusLine { grid-column: 1 / -1; }
+.statusLine .statusRow { justify-content: center; }
+.statusLine input[type="text"] { width: min(380px, 60%); }
+.statusLine .inOrDe { width: 44px; }
+.statusHint { margin: 4px 0 0; color: var(--parchment-dim); font-size: .9rem; text-align: center; }
+.statusDone { width: min(240px, 100%); margin: 16px auto 0; }
