@@ -215,6 +215,12 @@ function init()
     currentLv = window.wholeChar[window.player]["stats"]["lv"] + "th level";
     currentToken = window.wholeChar[window.player]["currentToken"];
 
+    //Skill trees only exist for some characters (Infused ones): hide the tab for everyone else
+    fetch('src/skillTree.json').then(res => res.json()).then((trees) =>
+    {
+        if(!trees?.[window.player]){document.querySelector('button[name="skills"]')?.classList.add("noSkillTreeTab");}
+    }).catch(() => {});
+
     for(let diceSelect of document.getElementsByClassName("diceSelect")){diceSelect.onclick = handleDiceSelect;}
     document.getElementById("questCard").onclick = handleLoadQuests;
 }

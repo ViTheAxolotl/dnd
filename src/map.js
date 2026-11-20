@@ -115,6 +115,9 @@ function init()
 
     document.getElementById("helpBtn").onclick = function(){handleViewTokens(this);}; //Opens the instructions overlay
     document.getElementById("hideCover").onclick = hideCover; 
+    //Popups close on a click outside them or Esc, like the Done button
+    document.getElementById("coverBackdrop").onclick = hideCover;
+    document.addEventListener("keydown", (e) => {if(e.key == "Escape" && !document.getElementById("cover").classList.contains("invisible")){hideCover();}});
 
     let iFrames = document.getElementsByTagName("iframe");
     
@@ -1079,6 +1082,17 @@ function handleViewTokens(t)
 
     viewDiv.children[0].classList = "";
     viewDiv.children[1].classList = "";
+
+    //The instructions text only belongs in the help popup; the token pictures, title and
+    //Quick Action only in the token view
+    if(t.id != "helpBtn"){document.getElementById("showInstructions").classList.add("invisible");}
+    else
+    {
+        for(let elm of viewDiv.children[0].children)
+        {
+            if(elm.id != "hideCover" && elm.id != "showInstructions"){elm.classList.add("invisible");}
+        }
+    }
 
     if(t.id == "helpBtn")
     {

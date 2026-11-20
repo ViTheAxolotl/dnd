@@ -76,6 +76,19 @@ class ResponsiveImageMap {
 
 
 
+// The special-skill descriptions (src/skillTree.json), keyed by character. Loaded once;
+// everything that reads skillDesc waits for this first.
+const skillDescReady = fetch('src/skillTree.json').then(res => res.json()).then((json) => {skillDesc = json;}).catch((error) => {console.error("Couldn't load the skill trees:", error); skillDesc = {};});
+
+/** Replaces the tree with a note when this character has no skill tree. */
+function showNoSkillTree()
+{
+    let map = document.getElementById("map");
+    if(map.dataset.noTree){return;}
+    map.dataset.noTree = "1";
+    map.innerHTML = `<h4 class="noSkillTree">${toTitleCase(player ?? "This character")} doesn't have a skill tree in this campaign.</h4>`;
+}
+
 // Once logged in, listen to this player's unlocked skills and recalculate every bonus
 // from scratch each time they change. A brand-new player starts with "start1" unlocked.
 onAuthStateChanged(auth, (user) => 
@@ -91,8 +104,17 @@ onAuthStateChanged(auth, (user) =>
         player = character; //This login's character in the live campaign
         
         let skillRef = dbRef(`playerChar/${player}/skillTree`);
-        onValue(skillRef, (snapshot) => 
+        onValue(skillRef, async (snapshot) => 
         {
+            await skillDescReady; //The skill descriptions must be loaded first
+
+            //Only some characters have a skill tree (e.g. none in Drunk): show a note, change nothing
+            if(!skillDesc?.[player])
+            {
+                showNoSkillTree();
+                return;
+            }
+
             const data = snapshot.val();
             wholeSkills = data;
             skills = {"Strength" : 0, "Dexterity" : 0, "Constitution" : 0, "Intelligence" : 0, "Wisdom" : 0, "Charisma" : 0};
@@ -159,8 +181,10 @@ function init()
     let image = document.getElementById('skillImg');
     new ResponsiveImageMap(map, image, 1920);
     document.getElementById("hideCovers").onclick = function(){handleButtonClick(this);};
+    //Clicking outside the popup or pressing Esc is the same as Cancel
+    document.getElementById("coverBackdrop").onclick = () => document.getElementById("hideCovers").click();
+    document.addEventListener("keydown", (e) => {if(e.key == "Escape" && !document.getElementById("cover").classList.contains("invisible")){document.getElementById("hideCovers").click();}});
     document.getElementById("unlock").onclick = function(){handleButtonClick(this);};
-    fetch('src/skillTree.json').then(res => res.json()).then((json) => skillDesc = json);
     parent.skillsLoaded = true;
 }
 

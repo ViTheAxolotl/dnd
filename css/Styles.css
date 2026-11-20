@@ -1969,34 +1969,6 @@ body.embedded #siteList > #story
 }
 @media (prefers-reduced-motion: reduce) { .navD20 { transition: none; } }
 
-/* ---- Skill tree popup (skill info / help): text near the top, buttons at the bottom ---- */
-body.embedded #cover:not(.invisible)
-{
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: flex-start;
-    gap: 6px;
-    padding: 8vh 20px 28px;
-    text-align: center;
-}
-body.embedded #cover p
-{
-    max-width: 640px;
-    margin: 0 auto 10px;
-    text-align: left;   /* the block stays centred; its lines read from the left */
-    text-indent: 2em;
-}
-.skillPopupButtons
-{
-    display: flex;
-    justify-content: center;
-    gap: 10px;
-    width: min(560px, 100%);
-    margin-top: auto; /* buttons sit at the bottom of the popup */
-}
-.skillPopupButtons .gridButton { flex: 1 1 0; margin: 0; }
-
 /* ---- Selection: "Manage Imgs" upload form ---- */
 .uploadToken
 {
@@ -2128,3 +2100,143 @@ body.embedded #cover p
 .statusLine .inOrDe { width: 44px; }
 .statusHint { margin: 4px 0 0; color: var(--parchment-dim); font-size: .9rem; text-align: center; }
 .statusDone { width: min(240px, 100%); margin: 16px auto 0; }
+
+/* ===================================================================================== *
+ *  POPUPS: one look everywhere (dashboard help / token view / DM interactive / quick    *
+ *  action, skill tree, character-sheet spells), matching the status menu: a framed box  *
+ *  in the middle of a dimmed page. Clicking the dim area or pressing Esc closes it, and *
+ *  Done sits at the bottom in the middle.                                               *
+ * ===================================================================================== */
+#coverBackdrop, #spellBackdrop { display: none; }
+#cover:not(.invisible) ~ #coverBackdrop,
+#spellFrame:not(.invisible) ~ #spellBackdrop
+{
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    background: rgba(14, 10, 8, .8);
+    cursor: pointer;
+}
+
+#cover:not(.invisible), #spellFrame:not(.invisible)
+{
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 3001 !important;
+    width: min(920px, calc(100vw - 40px));
+    height: auto;
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 18px 22px 20px;
+    background: var(--oak);
+    border-radius: var(--radius);
+    box-shadow: var(--frame);
+    opacity: 1 !important;
+    color: var(--parchment);
+}
+
+/* Done (and the dashboard's Quick Action beside it) */
+.popupDone,
+body:not(.embedded) #cover #hideCover,
+body:not(.embedded) #cover #quickAction
+{
+    position: static;
+    width: 240px;
+    max-width: 100%;
+    margin: 14px 0 0;
+    border: 1px solid var(--brass-dim);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, var(--leather-hi), var(--leather));
+    color: var(--parchment);
+}
+
+/* --- Dashboard (#cover): everything stacks in one centred column ------------------- */
+body:not(.embedded) #cover:not(.invisible)
+{
+    display: grid;
+    grid-template-columns: 1fr auto auto 1fr;   /* the middle two hold Quick Action | Done */
+    justify-items: center;
+    align-items: start;
+    column-gap: 10px;
+    text-align: center;
+}
+body:not(.embedded) #cover .invisible { display: none !important; }
+/* The two wrappers just pass their contents through to the column, even when the old
+   code marks them "invisible" (each item inside is shown or hidden on its own) */
+body:not(.embedded) #cover > div,
+body:not(.embedded) #cover > div.invisible,
+body:not(.embedded) #quickDiv,
+body:not(.embedded) #quickDiv.invisible { display: contents !important; visibility: visible !important; }
+body:not(.embedded) #cover > div > *,
+body:not(.embedded) #quickDiv > * { grid-column: 1 / -1; }
+
+body:not(.embedded) #cover #viewToken,          /* token picture, ring and HP bar, stacked */
+body:not(.embedded) #cover #viewBorder,
+body:not(.embedded) #cover #viewHp
+{
+    grid-row: 2;
+    position: static;
+    width: 260px;
+    max-width: 70vw;
+    height: auto;
+    margin: 0;
+    grid-column: 1 / -1;
+}
+body:not(.embedded) #cover #viewTitle { grid-row: 3; position: static; margin: 12px 0 0; }
+body:not(.embedded) #cover #holdingDiv { grid-row: 4; }
+body:not(.embedded) #cover #holdingDiv h3 { margin-top: 0 !important; }
+body:not(.embedded) #cover #showInstructions { grid-row: 5; max-width: 760px; text-align: left; }
+body:not(.embedded) #quickDiv > .center { grid-row: 6; width: 100%; }
+body:not(.embedded) #spellsFQ { grid-row: 7; width: 100%; }
+body:not(.embedded) #abilityFQ { grid-row: 8; width: 100%; }
+body:not(.embedded) #qaCards { grid-row: 9; width: 100%; }
+body:not(.embedded) #cover #quickAction { grid-row: 10; grid-column: 2; }
+body:not(.embedded) #cover #hideCover { grid-row: 10; grid-column: 3; }
+body:not(.embedded) #cover #quickAction.invisible + #hideCover { grid-column: 2 / 4; } /* Done alone: centred */
+
+/* --- Skill tree (#cover inside the iframe): title and text at the top, buttons at the bottom */
+body.embedded #cover:not(.invisible)
+{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: min(720px, calc(100vw - 40px));
+    min-height: min(340px, calc(100vh - 40px));
+    text-align: center;
+}
+body.embedded #cover h3 { margin-top: 6px; }
+body.embedded #cover p
+{
+    max-width: 640px;
+    margin: 0 auto 10px;
+    padding: 0 !important;
+    text-align: left;   /* the block stays centred; its lines read from the left */
+    text-indent: 2em;
+}
+.skillPopupButtons
+{
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    width: min(500px, 100%);
+    margin-top: auto; /* buttons sit at the bottom of the popup */
+    padding-top: 12px;
+}
+.skillPopupButtons .gridButton { flex: 1 1 0; margin: 0; }
+
+/* --- Character sheet spells (#spellFrame) ------------------------------------------ */
+#spellFrame:not(.invisible) { width: min(1000px, calc(100vw - 40px)); }
+#spellFrame > div { display: flex !important; flex-direction: column; align-items: center; }
+#spellFrame #spellCard { height: auto !important; justify-content: center; }
+#spellFrame.lookupMode { height: calc(100vh - 40px); }
+#spellFrame.lookupMode > div { height: 100%; }
+#spellFrame.lookupMode #frame { flex: 1; width: 100%; min-height: 0; }
+#spellFrame #exitIframe { margin: 14px auto 0; }
+
+/* Skill tree: characters without one (e.g. Drunk) */
+.noSkillTreeTab { display: none !important; }
+.noSkillTree { padding: 60px 20px; color: var(--parchment-dim); text-align: center; }

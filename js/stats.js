@@ -38,6 +38,8 @@ function init()
     let viewButtons = document.getElementsByClassName("viewSpell");
     let exitBtn = document.getElementById("exitIframe");
     exitBtn.onclick = handleExit;
+    document.getElementById("spellBackdrop").onclick = handleExit; //Click outside the popup to close it
+    document.addEventListener("keydown", (e) => {if(e.key == "Escape"){handleExit();}});
 
     for(let stat of stats)
     {
@@ -538,6 +540,7 @@ function showSpell()
 
             document.getElementById("frame").style.display = "none";
             document.getElementById("spellCard").style.display = "flex";
+            document.getElementById("spellFrame").classList.remove("lookupMode");
         }
 
         else
@@ -548,6 +551,7 @@ function showSpell()
 
             document.getElementById("spellCard").style.display = "none";
             document.getElementById("frame").style.display = "block";
+            document.getElementById("spellFrame").classList.add("lookupMode"); //A tall box for the web page
         }
         
         document.getElementById("spellFrame").classList.remove("invisible");
