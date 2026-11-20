@@ -523,6 +523,30 @@ export function safeReload(reason)
 }
 
 /**
+ * A token title (" Mistah, Infused, Nook,") with `name` in it. The first name in a title is
+ * whose token it is: players can only take control of tokens whose title names them
+ * (their summons), so their own token's title must name them too. Blank or "." titles
+ * become just the name.
+ */
+export function titleWithName(title, name)
+{
+    let parts = String(title ?? "").split(",").map((part) => part.trim()).filter((part) => part != "" && part != ".");
+    if(name && !parts.includes(name)){parts.unshift(name);}
+    return parts.length ? " " + parts.join(", ") + "," : " ";
+}
+
+/**
+ * A map row moved by `offset` squares: "M" + 2 -> "O" (rows are the letters A-Z),
+ * kept on the 26-row board.
+ */
+export function shiftRow(row, offset)
+{
+    let index = String(row ?? "A").toUpperCase().charCodeAt(0) - 65;
+    if(isNaN(index) || index < 0 || index > 25){index = 0;}
+    return String.fromCharCode(65 + Math.min(25, Math.max(0, index + offset)));
+}
+
+/**
  * True if `key` can be used as a database key (Firebase doesn't allow . # $ [ ] / or blank).
  */
 export function isValidKey(key)
