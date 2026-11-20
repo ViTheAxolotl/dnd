@@ -2240,3 +2240,56 @@ body.embedded #cover p
 /* Skill tree: characters without one (e.g. Drunk) */
 .noSkillTreeTab { display: none !important; }
 .noSkillTree { padding: 60px 20px; color: var(--parchment-dim); text-align: center; }
+
+/* ---- Popup box drawn by showPopup() (used by the sheet's spell lookup) ---- */
+.popupBackdrop
+{
+    position: fixed;
+    inset: 0;
+    z-index: 3000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(14, 10, 8, .8);
+}
+.popupBox
+{
+    width: min(760px, 100%);
+    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    padding: 18px 22px 20px;
+    background: var(--oak);
+    border-radius: var(--radius);
+    box-shadow: var(--frame);
+    color: var(--parchment);
+    text-align: center;
+}
+.popupTitle { margin: 0 0 10px; font-family: var(--font-display); color: #e6c77e; }
+.popupMessage { margin: 0 auto 6px; max-width: 640px; white-space: pre-line; text-align: left; }
+.popupButtons { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
+.popupButtons .gridButton { flex: 0 1 240px; margin: 0; }
+.popupSpell .card-body { text-align: left; font-size: 1.05rem; }
+.popupSpell .card-title { text-align: center; }
+.popupSpell .card-text { margin: 4px 0; }
+.popupTall { width: min(1000px, 100%); height: calc(100vh - 40px); display: flex; flex-direction: column; }
+.popupTall .popupBody { flex: 1; min-height: 0; }
+.popupFrame { width: 100%; height: 100%; border: 1px solid var(--brass-dim); background: #fff; }
+
+/* ---- Help popup: roomier tabs, all on one line when there's space ---- */
+body:not(.embedded) #cover #holdingDiv
+{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 14px;
+}
+body:not(.embedded) #cover #holdingDiv h3 { flex-basis: 100%; margin: 0 0 4px; }
+body:not(.embedded) #cover #holdingDiv .gridButton
+{
+    width: auto;
+    min-width: 130px;
+    margin: 0 !important;
+    padding: 8px 22px;
+}

@@ -16,7 +16,7 @@
  */
 
 "use strict";
-import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendDiscordMessage } from './viMethods.js';
+import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendDiscordMessage, showPopup } from './viMethods.js';
 
 let stats;
 let firstRun = true;
@@ -526,35 +526,30 @@ function showSpell()
 
     if(spellName != "")
     {
-        if(parent.wholeSpells[spellLevel][spellName])
-        {
-            let spell = parent.wholeSpells[spellLevel][spellName];
-            document.getElementById("spellTitle").innerHTML = spell["name"];
-            document.getElementById("CT").innerHTML = `Cast Time: ${spell["castTime"]}`;
-            document.getElementById("R").innerHTML = `Range: ${spell["range"]}`;
-            document.getElementById("C").innerHTML = `Components: ${spell["components"]}`;
-            document.getElementById("D").innerHTML = `Duration: ${spell["duration"]}`;
-            if(spell["concentration"] == "true"){document.getElementById("concentration").style.display = "block";}
-            else{document.getElementById("concentration").style.display = "none";}
-            document.getElementById("spellText").innerHTML = spell["description"];
+        //Shown on the dashboard itself (not inside this zoomed sheet), so it's full size
+        let spell = parent.wholeSpells?.[spellLevel]?.[spellName];
 
-            document.getElementById("frame").style.display = "none";
-            document.getElementById("spellCard").style.display = "flex";
-            document.getElementById("spellFrame").classList.remove("lookupMode");
+        if(spell)
+        {
+            let line = (label, value) => `<p class="card-text">${label}: ${value}</p>`;
+            showPopup({boxClass: "popupSpell", html:
+                `<div class="card-body notes">
+                    <h5 class="card-title">${spell["name"]}</h5>
+                    ${line("Cast Time", spell["castTime"])}
+                    ${line("Range", spell["range"])}
+                    ${line("Components", spell["components"])}
+                    ${line("Duration", spell["duration"])}
+                    ${spell["concentration"] == "true" ? `<p class="card-text">Concentration</p>` : ""}
+                    <p class="card-text">${spell["description"]}</p>
+                </div>`});
         }
 
         else
         {
-            spellName.replaceAll(" ", "%20");
-            link = `https://roll20.net/compendium/dnd5e/${spellName}`;
-            document.getElementById("spellLookup").src = link;
-
-            document.getElementById("spellCard").style.display = "none";
-            document.getElementById("frame").style.display = "block";
-            document.getElementById("spellFrame").classList.add("lookupMode"); //A tall box for the web page
+            //Not in the site's spell list: open it on Roll20 in a tall box
+            link = `https://roll20.net/compendium/dnd5e/${encodeURIComponent(spellName)}`;
+            showPopup({boxClass: "popupTall", title: spellName, html: `<iframe class="popupFrame" src="${link}" title="${spellName}"></iframe>`});
         }
-        
-        document.getElementById("spellFrame").classList.remove("invisible");
     }
 }
 

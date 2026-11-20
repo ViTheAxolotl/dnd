@@ -744,3 +744,46 @@ export function sampleStats(chars)
     }
     return {};
 }
+
+/**
+ * Shows the site's popup box on the top page (so a popup from a zoomed frame, like the
+ * character sheet, is shown full size): a framed box over a dimmed page, buttons at the
+ * bottom in the middle. Clicking the dim area or pressing Esc closes it.
+ *   title, message (plain text), html (trusted markup from the site's own data),
+ *   boxClass (extra class for the box, e.g. "popupTall"), buttons: [{label, value, primary}]
+ * Resolves with the pressed button's value (null when closed another way).
+ */
+export function showPopup({title = "", message = "", html = "", boxClass = "", buttons = [{label: "Done", value: true, primary: true}]} = {})
+{
+    let doc = document;
+    try{if(window.top.document.body){doc = window.top.document;}}catch(e){}
+
+    return new Promise((resolve) =>
+    {
+        let el = (tag, cls, text) => {let e = doc.createElement(tag); if(cls){e.className = cls;} if(text != undefined){e.textContent = text;} return e;};
+        let backdrop = el("div", "popupBackdrop");
+        let box = el("div", ("popupBox " + boxClass).trim());
+        box.setAttribute("role", "dialog");
+        if(title){box.appendChild(el("h3", "popupTitle", title));}
+        if(message){box.appendChild(el("p", "popupMessage", message));}
+        if(html){let body = el("div", "popupBody"); body.innerHTML = html; box.appendChild(body);}
+
+        let close = (value) => {doc.removeEventListener("keydown", keys, true); backdrop.remove(); resolve(value);};
+        let keys = (e) => {if(e.key == "Escape"){e.preventDefault(); e.stopPropagation(); close(null);}};
+
+        let row = el("div", "popupButtons");
+        for(let b of buttons)
+        {
+            let button = el("button", "gridButton" + (b.primary ? " popupPrimary" : ""), b.label);
+            button.onclick = () => close(b.value);
+            row.appendChild(button);
+        }
+        box.appendChild(row);
+
+        backdrop.onclick = (e) => {if(e.target == backdrop){close(null);}};
+        backdrop.appendChild(box);
+        doc.body.appendChild(backdrop);
+        doc.addEventListener("keydown", keys, true);
+        row.querySelector(".popupPrimary")?.focus();
+    });
+}
