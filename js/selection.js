@@ -17,7 +17,7 @@
 "use strict";
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, clenseInput, deleteDoc, reload, placeBefore, tokenCategory, CHARACTER_CATEGORY, dbRef, character, login, campaign, holdCampaignReload, blankCharacter, sampleStats } from './viMethods.js';
+import { toTitleCase, auth, database, setDoc, clenseInput, deleteDoc, reload, placeBefore, tokenCategory, CHARACTER_CATEGORY, dbRef, character, login, campaign, holdCampaignReload, blankCharacter, sampleStats, titleWithName, isValidKey, DM_LOGIN } from './viMethods.js';
 
 let player;
 let wholeChars = {};
@@ -495,17 +495,28 @@ function handleGoButton()
  */
 function createChar(curCharacter, curBorder)
 {
-    let charName = curCharacter.slice(0, curCharacter.length - 1);
-    if(curCharacter.includes("ustom")){charName = curCharacter.slice(7);}
-    let char = {border : curBorder, currentHp : `${document.getElementById("Current Hp").value}`, maxHp : `${document.getElementById("Max Hp").value}`, tempHp : document.getElementById("Temp Hp").value, map : "", id : charName, name : curCharacter, title : " " + charName + ", ", xPos : "1", yPos : "A", isSummon : false, AC : document.getElementById("AC").value || "10"}; //Blank AC box -> 10
+    //The token's id is the character's key (Mistah), whatever picture they pick, so picking
+    //a new picture updates their token instead of adding another. (The DM keeps theirs.)
+    let tokenId = (player == DM_LOGIN && oldToken?.["id"]) ? oldToken["id"] : player;
+    let char = {border : curBorder, currentHp : `${document.getElementById("Current Hp").value}`, maxHp : `${document.getElementById("Max Hp").value}`, tempHp : document.getElementById("Temp Hp").value, map : "", id : tokenId, name : curCharacter, title : titleWithName("", player), xPos : "1", yPos : "A", isSummon : false, AC : document.getElementById("AC").value || "10"}; //Blank AC box -> 10
 
-    
     if(oldToken != null || oldToken != undefined)
     {
-        char["title"] = oldToken["title"];
-        char["xPos"] = oldToken["xPos"];
-        char["yPos"] = oldToken["yPos"];
-        char["isSummon"] = oldToken["isSummon"];
+        //Keep where they are and their status words; the title must still name them
+        let onMap = wholeDb?.[oldToken["id"]];
+        char["title"] = player == DM_LOGIN ? oldToken["title"] : titleWithName(onMap?.["title"] ?? oldToken["title"], player);
+        char["xPos"] = onMap?.["xPos"] ?? oldToken["xPos"];
+        char["yPos"] = onMap?.["yPos"] ?? oldToken["yPos"];
+        char["isSummon"] = oldToken["isSummon"] ?? false;
+
+        //Their old token had another id (e.g. named after an old picture): take it off the
+        //map, unless another character's token uses that id too
+        let oldId = oldToken["id"];
+        let sharedId = Object.keys(wholeChars ?? {}).some((key) => key != player && wholeChars[key]?.["token"]?.["id"] == oldId);
+        if(oldId && oldId != tokenId && isValidKey(oldId) && !sharedId && !["map", "spawnPoint"].includes(oldId))
+        {
+            deleteDoc(`currentMap/${oldId}`);
+        }
     }
 
     if(isNewCharacter)
@@ -514,10 +525,9 @@ function createChar(curCharacter, curBorder)
         setDoc(`playerChar/${player}`, blankCharacter(player, sampleStats(wholeChars)));
     }
 
-    setDoc(`currentMap/${charName}`, char);
+    setDoc(`currentMap/${tokenId}`, char);
     setDoc(`playerChar/${player}/token`, char);
-    setDoc(`playerChar/${player}/charName`, char["id"]);
-    setDoc(`playerChar/${player}/currentToken`, char["id"]);
+    setDoc(`playerChar/${player}/currentToken`, tokenId);
 
     //Link this login to the character in the live campaign (last, once the character exists)
     if(isNewCharacter){setDoc(`campaigns/${campaign}/players/${login}`, player);}
