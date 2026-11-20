@@ -43,7 +43,8 @@ function init()
     {
         if(parent.wholeChar[parent.player] == undefined)
         {
-            location.reload();
+            setTimeout(() => location.reload(), 1000); //Try again in a second
+            return;
         }
 
         else if(parent.wholeChar[parent.player]["stats"][stat.id] || parent.wholeChar[parent.player]["stats"][stat.id] == "")
