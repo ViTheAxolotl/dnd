@@ -476,14 +476,22 @@ function handleGoButton()
             }
         }
 
-        let loading = document.createElement("h3");
-        let loadingGif = document.createElement("img");
-        loading.innerHTML = "Loading, Axol Map V1.11 Bug Fixes, Adding new Modifiers to Attacks, Updating to Current Info...";
-        loadingGif.src = "images/loadingGif.gif";
-        loadingGif.style.minWidth = "10%";
+        //Loading screen: a spinning brass d20 and a bar that fills while the token saves
+        let loading = document.createElement("div");
+        loading.className = "tokenLoading";
+        loading.innerHTML = `
+            <svg class="tokenLoadingDie" viewBox="0 0 100 100" aria-hidden="true">
+                <circle class="tokenLoadingRing" cx="50" cy="50" r="47"></circle>
+                <polygon points="50,8 86,29 86,71 50,92 14,71 14,29"></polygon>
+                <polygon points="50,29 70,64 30,64"></polygon>
+                <polyline points="50,8 50,29 14,29 30,64 14,71 50,92 70,64 86,71 70,64 86,29 50,29"></polyline>
+                <polyline points="30,64 50,92"></polyline>
+                <text x="50" y="57">20</text>
+            </svg>
+            <h3>Readying your token<span class="tokenLoadingDots"><span>.</span><span>.</span><span>.</span></span></h3>
+            <div class="tokenLoadingBar"><div></div></div>`;
         div.classList.add("center"); 
         div.appendChild(loading);
-        div.appendChild(loadingGif);
         setTimeout(() => {window.location.href = `index.html`;}, 2000); //The dashboard (there's no map.html)
     }
 }
