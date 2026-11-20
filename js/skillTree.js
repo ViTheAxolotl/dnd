@@ -188,6 +188,7 @@ function summonDarkness(map, image)
         newImage.style.height = (radius*2) + "px";
         newImage.style.left = (x - radius) + "px";
         newImage.style.top = (y - radius) + "px";
+        newImage.classList.add("skillCover"); //No frame (see .skillCover in Styles.css)
         newImage.style.border = "none";
         newImage.style.margin = "0px";
         newImage.style.position = "absolute";
