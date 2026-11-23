@@ -2189,10 +2189,10 @@ body:not(.embedded) #cover #viewTitle { grid-row: 3; position: static; margin: 1
 body:not(.embedded) #cover #holdingDiv { grid-row: 4; }
 body:not(.embedded) #cover #holdingDiv h3 { margin-top: 0 !important; }
 body:not(.embedded) #cover #showInstructions { grid-row: 5; max-width: 760px; text-align: left; }
-body:not(.embedded) #quickDiv > .center { grid-row: 6; width: 100%; }
-body:not(.embedded) #spellsFQ { grid-row: 7; width: 100%; }
-body:not(.embedded) #abilityFQ { grid-row: 8; width: 100%; }
-body:not(.embedded) #qaCards { grid-row: 9; width: 100%; }
+body:not(.embedded) #quickDiv > div:first-child { grid-row: 6; width: 100%; }   /* Spells | Abilities */
+body:not(.embedded) #quickDiv #spellsFQ { grid-row: 7; width: 100%; }
+body:not(.embedded) #quickDiv #abilityFQ { grid-row: 8; width: 100%; }
+body:not(.embedded) #quickDiv #qaCards { grid-row: 9; width: 100%; }
 body:not(.embedded) #cover #quickAction { grid-row: 10; grid-column: 2; }
 body:not(.embedded) #cover #hideCover { grid-row: 10; grid-column: 3; }
 body:not(.embedded) #cover #quickAction.invisible + #hideCover { grid-column: 2 / 4; } /* Done alone: centred */
@@ -2293,3 +2293,39 @@ body:not(.embedded) #cover #holdingDiv .gridButton
     margin: 0 !important;
     padding: 8px 22px;
 }
+
+/* ---- Favourites: folders ---- */
+.favFolders
+{
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 8px;
+    padding-bottom: 10px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid var(--brass-dim);
+}
+.favFolders .gridButton { width: auto; min-width: 140px; margin: 0; padding: 6px 18px; }
+.favFolders .favFolderTool
+{
+    min-width: 0;
+    background: var(--stone);
+    border: 1px dashed var(--brass-dim);
+    font-size: .95rem;
+}
+.favFolders .favFolderTool:hover { border-color: var(--brass); }
+.favFolderChips
+{
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    margin: 4px 0 8px;
+    color: var(--parchment);
+}
+.favFolderChips .statusChip { min-width: 0; padding: 2px 12px; }
+.popupInput { width: 100%; margin: 6px 0 2px; }
+/* Quick Action's folder bar sits above its Spells / Abilities buttons */
+body:not(.embedded) #cover #favFoldersQ { grid-row: 5; grid-column: 1 / -1; width: 100%; }

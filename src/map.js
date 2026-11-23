@@ -1196,6 +1196,7 @@ function hideCover()
     
     let holdingDiv = document.getElementById("holdingDiv");
     if(holdingDiv != null){holdingDiv.remove();}
+    document.getElementById("favFoldersQ")?.remove(); //Quick Action's folder bar
 
     viewDiv.children[1].children[0].classList.add("invisible");
     viewDiv.children[1].children[1].style.display = "none";

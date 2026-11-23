@@ -753,7 +753,7 @@ export function sampleStats(chars)
  *   boxClass (extra class for the box, e.g. "popupTall"), buttons: [{label, value, primary}]
  * Resolves with the pressed button's value (null when closed another way).
  */
-export function showPopup({title = "", message = "", html = "", boxClass = "", buttons = [{label: "Done", value: true, primary: true}]} = {})
+export function showPopup({title = "", message = "", html = "", boxClass = "", input = null, buttons = [{label: "Done", value: true, primary: true}]} = {})
 {
     let doc = document;
     try{if(window.top.document.body){doc = window.top.document;}}catch(e){}
@@ -768,14 +768,30 @@ export function showPopup({title = "", message = "", html = "", boxClass = "", b
         if(message){box.appendChild(el("p", "popupMessage", message));}
         if(html){let body = el("div", "popupBody"); body.innerHTML = html; box.appendChild(body);}
 
+        //Optional text box: a primary button then resolves with its text
+        let field = null;
+        if(input)
+        {
+            field = el("input", "popupInput");
+            field.type = "text";
+            field.value = input.value ?? "";
+            field.placeholder = input.placeholder ?? "";
+            box.appendChild(field);
+        }
+
         let close = (value) => {doc.removeEventListener("keydown", keys, true); backdrop.remove(); resolve(value);};
-        let keys = (e) => {if(e.key == "Escape"){e.preventDefault(); e.stopPropagation(); close(null);}};
+        let primaryValue = () => {let b = buttons.find((b) => b.primary); return field ? field.value : b?.value;};
+        let keys = (e) =>
+        {
+            if(e.key == "Escape"){e.preventDefault(); e.stopPropagation(); close(null);}
+            else if(e.key == "Enter" && field && doc.activeElement == field){e.preventDefault(); close(primaryValue());}
+        };
 
         let row = el("div", "popupButtons");
         for(let b of buttons)
         {
             let button = el("button", "gridButton" + (b.primary ? " popupPrimary" : ""), b.label);
-            button.onclick = () => close(b.value);
+            button.onclick = () => close(field && b.primary ? field.value : b.value);
             row.appendChild(button);
         }
         box.appendChild(row);
@@ -784,6 +800,7 @@ export function showPopup({title = "", message = "", html = "", boxClass = "", b
         backdrop.appendChild(box);
         doc.body.appendChild(backdrop);
         doc.addEventListener("keydown", keys, true);
-        row.querySelector(".popupPrimary")?.focus();
+        (field ?? row.querySelector(".popupPrimary"))?.focus();
+        field?.select();
     });
 }

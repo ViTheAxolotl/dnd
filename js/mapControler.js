@@ -27,7 +27,7 @@
 "use strict";
 
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
-import { toTitleCase, database, createCard, setDoc, deleteDoc, placeBefore, createLabel, clenseInput, reload, setMapValue, quickAction, setQuickAction, skillDecrypt, sendDiscordMessage, storage, tokenCategory, makeCategoryFilter, CHARACTER_CATEGORY, dbRef } from './viMethods.js';
+import { toTitleCase, database, createCard, setDoc, deleteDoc, placeBefore, createLabel, clenseInput, reload, setMapValue, quickAction, setQuickAction, skillDecrypt, sendDiscordMessage, storage, tokenCategory, makeCategoryFilter, CHARACTER_CATEGORY, dbRef, showPopup } from './viMethods.js';
 import { uploadBytes, getDownloadURL, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
 
@@ -535,71 +535,298 @@ function handleChangeFirstDisplay()
     }
 }
 
+/* ------------------------------------------------------------------------------------ *
+ *  Favourites and folders (the ★ tab, and Quick Action)                                 *
+ *  Every favourite lives once in playerChar/<Player>/favorites/spells/<level>/<name> or *
+ *  .../actions/<tag>/<name>. The first folder, named after the character, shows all of  *
+ *  them. Extra folders (favorites/folders/<id>: {name, spells: {<level>: {<name>:       *
+ *  true}}, actions: {...}}) only point at favourites, so the same spell can be in       *
+ *  several folders and editing it changes it everywhere.                                *
+ * ------------------------------------------------------------------------------------ */
+let favFolder = null;            //The extra folder being viewed (null = the character's own folder)
+let favoritesListening = false;  //The favourites listener is only set up once
+
 /**
- * Listens to the player's favourites (playerChar/<Player>/favorites) and builds a button
- * for each spell level and action tag they've saved, plus "Create New Spell/Ability".
- * In quick-action mode the buttons go into the overlay instead.
+ * Opens the favourites: listens to them (once) and draws the folder bar and the
+ * spell-level / ability-tag buttons. In Quick Action they go into the overlay instead.
  */
 function handleFavoriteSelect()
 {
     favorite = true;
-    favoriteRef = dbRef(`playerChar/${window.player}/favorites/`); //Connects the the favorites database
-    onValue(favoriteRef, (snapshot) => 
-    { //Every time something changes in the database
-        const data = snapshot.val();
-        window.wholeFavorite = data;
-        let spellDiv = document.getElementById("spellsF");
-        let actionDiv = document.getElementById("abilityF");
 
-        if(quickAction == true)
+    if(!favoritesListening)
+    {
+        favoritesListening = true;
+        favoriteRef = dbRef(`playerChar/${window.player}/favorites/`); //Connects the the favorites database
+        onValue(favoriteRef, (snapshot) => 
         {
-            spellDiv = document.getElementById("spellsFQ");
-            actionDiv = document.getElementById("abilityFQ");
-        }
+            window.wholeFavorite = snapshot.val() ?? {};
+            if(favorite){renderFavorites();}
+        });
+    }
 
-        while(spellDiv.children.length > 0) //Until the div is empty
+    else{renderFavorites();}
+}
+
+/**
+ * The favourites in the folder being viewed: {spells: {<level>: {<name>: spell}}, actions: {...}}.
+ * Includes the "hold" entries, which become the Create New buttons.
+ */
+function favoritesView()
+{
+    let all = window.wholeFavorite ?? {};
+    let folder = favFolder ? all["folders"]?.[favFolder] : null;
+    if(!folder){return {spells: all["spells"] ?? {}, actions: all["actions"] ?? {}};}
+
+    let pick = (kind) =>
+    {
+        let out = {};
+        for(let [group, names] of Object.entries(folder[kind] ?? {}))
         {
-            spellDiv.removeChild(spellDiv.lastChild); 
-        }
-
-
-        while(actionDiv.children.length > 0) //Until the div is empty
-        {
-            actionDiv.removeChild(actionDiv.lastChild);
-        }
-
-        spellDiv.classList.add("center"); //Centers the spells
-        actionDiv.classList.add("center"); //Centers the actions
-        
-        if(window.wholeFavorite["spells"]) //The spell btn is active
-        {
-            for(let spellLv of Object.keys(window.wholeFavorite["spells"])) //For each spell in the favorite of the player
+            for(let name of Object.keys(names ?? {}))
             {
-                let lvlBtn = document.createElement("button"); //Creates the button
-                lvlBtn.name = spellLv;
-                lvlBtn.classList = "gridButton spell";
-                lvlBtn.innerHTML = `Lvl ${spellLv}`;
-                lvlBtn.onclick = handleShowSpells;
-                if(spellLv == "0"){lvlBtn.innerHTML = "Cantrips";} //If the spell level is 0 change the name to cantrips
-                else if(spellLv == "hold"){if(!quickAction){lvlBtn.innerHTML = "Create New Spell"; lvlBtn.onclick = handleCreateNew;} else{continue;}} //After they reach the last button make it the create new button
-                spellDiv.appendChild(lvlBtn); //Adds the buttons to the div
+                let item = all[kind]?.[group]?.[name];
+                if(item){(out[group] ??= {})[name] = item;}
             }
         }
+        out["hold"] = {hold: "hold"}; //Create New
+        return out;
+    };
 
-        if(window.wholeFavorite["actions"]) //If the action btn is active
+    return {spells: pick("spells"), actions: pick("actions")};
+}
+
+/**
+ * Draws the folder bar and the spell-level / ability-tag buttons for the folder being viewed.
+ */
+function renderFavorites()
+{
+    if(favFolder && !window.wholeFavorite?.["folders"]?.[favFolder]){favFolder = null;} //Folder was deleted
+
+    let spellDiv = document.getElementById("spellsF");
+    let actionDiv = document.getElementById("abilityF");
+    let folderDiv = document.getElementById("favFolders");
+
+    if(quickAction == true)
+    {
+        spellDiv = document.getElementById("spellsFQ");
+        actionDiv = document.getElementById("abilityFQ");
+        folderDiv = document.getElementById("favFoldersQ");
+
+        if(!folderDiv) //The overlay's folder bar is made when Quick Action opens
         {
-            for(let actionTag of Object.keys(window.wholeFavorite["actions"])) //For each spell in the favorite of the player
-            {
-                let tagBtn = document.createElement("button"); //Creates the button
-                tagBtn.name = actionTag;
-                tagBtn.classList = "gridButton action";
-                tagBtn.innerHTML = `${actionTag}`;
-                tagBtn.onclick = handleShowActions;
-                if(actionTag == "hold"){if(!quickAction){tagBtn.innerHTML = "Create New Ability"; tagBtn.onclick = handleCreateNew;} else{continue;}} //After they reach the last button make it the create new button
-                actionDiv.appendChild(tagBtn); //Adds the buttons to the div
-            }
+            folderDiv = document.createElement("div");
+            folderDiv.id = "favFoldersQ";
+            document.getElementById("quickDiv").appendChild(folderDiv);
         }
-    });
+    }
+
+    renderFolderBar(folderDiv);
+
+    spellDiv.replaceChildren();
+    actionDiv.replaceChildren();
+    spellDiv.classList.add("center"); //Centers the spells
+    actionDiv.classList.add("center"); //Centers the actions
+
+    let view = favoritesView();
+
+    for(let spellLv of Object.keys(view["spells"])) //For each spell level in this folder
+    {
+        let lvlBtn = document.createElement("button"); //Creates the button
+        lvlBtn.name = spellLv;
+        lvlBtn.classList = "gridButton spell";
+        lvlBtn.innerHTML = `Lvl ${spellLv}`;
+        lvlBtn.onclick = handleShowSpells;
+        if(spellLv == "0"){lvlBtn.innerHTML = "Cantrips";} //If the spell level is 0 change the name to cantrips
+        else if(spellLv == "hold"){if(!quickAction){lvlBtn.innerHTML = "Create New Spell"; lvlBtn.onclick = handleCreateNew;} else{continue;}} //After they reach the last button make it the create new button
+        spellDiv.appendChild(lvlBtn); //Adds the buttons to the div
+    }
+
+    for(let actionTag of Object.keys(view["actions"])) //For each ability tag in this folder
+    {
+        let tagBtn = document.createElement("button"); //Creates the button
+        tagBtn.name = actionTag;
+        tagBtn.classList = "gridButton action";
+        tagBtn.innerHTML = `${actionTag}`;
+        tagBtn.onclick = handleShowActions;
+        if(actionTag == "hold"){if(!quickAction){tagBtn.innerHTML = "Create New Ability"; tagBtn.onclick = handleCreateNew;} else{continue;}} //After they reach the last button make it the create new button
+        actionDiv.appendChild(tagBtn); //Adds the buttons to the div
+    }
+}
+
+/**
+ * The row of folders: the character's own folder, their extra folders, and (outside Quick
+ * Action) New Folder, plus Rename / Delete Folder while an extra folder is open.
+ */
+function renderFolderBar(folderDiv)
+{
+    if(!folderDiv){return;}
+    folderDiv.replaceChildren();
+    folderDiv.className = "center favFolders";
+
+    let folders = window.wholeFavorite?.["folders"] ?? {};
+    let button = (label, cls, onclick) =>
+    {
+        let b = document.createElement("button");
+        b.className = "gridButton " + cls;
+        b.textContent = label;
+        b.onclick = onclick;
+        folderDiv.appendChild(b);
+        return b;
+    };
+
+    let open = (id) => () =>
+    {
+        if(favFolder == id){return;}
+        favFolder = id;
+        spellLevel = undefined;
+        curClass = undefined;
+        emptyCards();
+        renderFavorites();
+    };
+
+    let own = button(toTitleCase(window.player), "favFolder", open(null));
+    own.title = "All your favourites";
+    if(favFolder == null){own.classList.add("selected");}
+
+    let ids = Object.keys(folders).sort((x, y) => String(folders[x]?.["name"]).localeCompare(String(folders[y]?.["name"])));
+    for(let id of ids)
+    {
+        let b = button(folders[id]?.["name"] ?? id, "favFolder", open(id));
+        if(favFolder == id){b.classList.add("selected");}
+    }
+
+    if(quickAction){return;}
+
+    button("+ New Folder", "favFolderTool", newFavFolder);
+
+    if(favFolder)
+    {
+        button("Rename Folder", "favFolderTool", renameFavFolder);
+
+        let del = button("Delete Folder", "favFolderTool", function()
+        {
+            //Two clicks, like Manage Tokens. Only the folder goes; its spells stay in your favourites.
+            if(!this.dataset.armed)
+            {
+                this.dataset.armed = "1";
+                this.textContent = "Click again to delete";
+                setTimeout(() => {if(this.isConnected){delete this.dataset.armed; this.textContent = "Delete Folder";}}, 4000);
+                return;
+            }
+
+            deleteDoc(`playerChar/${window.player}/favorites/folders/${favFolder}`);
+            favFolder = null;
+            emptyCards();
+        });
+        del.title = "Removes the folder only; its spells and abilities stay in your favourites";
+    }
+}
+
+/** A folder's database key from its name ("Arcane Guard" -> "arcaneGuard"), unique. */
+function folderKey(name)
+{
+    let words = name.replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/).filter(Boolean);
+    let key = words.map((w, i) => i == 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()).join("") || "folder";
+    let folders = window.wholeFavorite?.["folders"] ?? {};
+    let unique = key;
+    for(let n = 2; folders[unique]; n++){unique = key + n;}
+    return unique;
+}
+
+async function newFavFolder()
+{
+    let name = await showPopup({title: "New folder", message: "What should the folder be called?", input: {placeholder: "e.g. Arcane Guard"}, buttons: [{label: "Cancel", value: null}, {label: "Create", value: true, primary: true}]});
+    name = String(name ?? "").trim();
+    if(!name){return;}
+
+    let id = folderKey(name);
+    window.wholeFavorite ??= {};
+    (window.wholeFavorite["folders"] ??= {})[id] = {name}; //Show it straight away
+    favFolder = id;
+    setDoc(`playerChar/${window.player}/favorites/folders/${id}/name`, name);
+    emptyCards();
+    renderFavorites();
+}
+
+async function renameFavFolder()
+{
+    let current = window.wholeFavorite?.["folders"]?.[favFolder]?.["name"] ?? "";
+    let name = await showPopup({title: "Rename folder", input: {value: current}, buttons: [{label: "Cancel", value: null}, {label: "Rename", value: true, primary: true}]});
+    name = String(name ?? "").trim();
+    if(name && name != current){setDoc(`playerChar/${window.player}/favorites/folders/${favFolder}/name`, name);}
+}
+
+/**
+ * The extra-folder buttons on a favourite's card: one per folder, lit when the card is
+ * in it. Clicking adds it to / takes it out of that folder.
+ */
+function folderChips(kind, group, name)
+{
+    let folders = window.wholeFavorite?.["folders"] ?? {};
+    let ids = Object.keys(folders);
+    if(ids.length == 0){return null;}
+
+    let row = document.createElement("div");
+    row.className = "favFolderChips";
+    let label = document.createElement("span");
+    label.textContent = "Folders:";
+    row.appendChild(label);
+
+    for(let id of ids.sort((x, y) => String(folders[x]?.["name"]).localeCompare(String(folders[y]?.["name"]))))
+    {
+        let chip = document.createElement("button");
+        let inFolder = !!folders[id]?.[kind]?.[group]?.[name];
+        chip.className = "statusChip" + (inFolder ? " on" : "");
+        chip.textContent = folders[id]?.["name"] ?? id;
+        chip.title = inFolder ? "In this folder: click to take it out" : "Click to add it to this folder";
+        chip.onclick = (e) =>
+        {
+            e.stopPropagation();
+            let now = !chip.classList.contains("on");
+            setDoc(`playerChar/${window.player}/favorites/folders/${id}/${kind}/${group}/${name}`, now ? true : null);
+            chip.classList.toggle("on", now);
+            chip.title = now ? "In this folder: click to take it out" : "Click to add it to this folder";
+        };
+        row.appendChild(chip);
+    }
+
+    return row;
+}
+
+/**
+ * Keeps folders pointing at a favourite after it's renamed or moved to another level/tag
+ * (and adds it to the open folder when it was made there).
+ */
+function moveFolderRefs(kind, oldGroup, oldName, newGroup, newName)
+{
+    let folders = window.wholeFavorite?.["folders"] ?? {};
+
+    for(let id of Object.keys(folders))
+    {
+        let had = !!folders[id]?.[kind]?.[oldGroup]?.[oldName];
+        let moved = oldGroup != newGroup || oldName != newName;
+
+        if(had && moved)
+        {
+            deleteDoc(`playerChar/${window.player}/favorites/folders/${id}/${kind}/${oldGroup}/${oldName}`);
+        }
+
+        if((had && moved) || (id == favFolder && !had))
+        {
+            setDoc(`playerChar/${window.player}/favorites/folders/${id}/${kind}/${newGroup}/${newName}`, true);
+        }
+    }
+}
+
+/** Takes a favourite out of every folder (when it's removed from favourites). */
+function removeFolderRefs(kind, group, name)
+{
+    let folders = window.wholeFavorite?.["folders"] ?? {};
+    for(let id of Object.keys(folders))
+    {
+        if(folders[id]?.[kind]?.[group]?.[name]){deleteDoc(`playerChar/${window.player}/favorites/folders/${id}/${kind}/${group}/${name}`);}
+    }
 }
 
 /**
@@ -1221,7 +1448,7 @@ function handleShowSpells()
     spellLevel = this.name;
     curClass = undefined;
     db = window.wholeSpells;
-    if(favorite){db = window.wholeFavorite["spells"];} //If spell level from player's favorite was clicked change databases
+    if(favorite){db = favoritesView()["spells"];} //Favourites: only the ones in the folder being viewed
     let spells = db[spellLevel];
     
     for(let spell of spellBtn) //For each spell button
@@ -1273,7 +1500,7 @@ function handleShowActions()
     spellLevel = undefined;
     curClass = this.name;
     db = window.wholeActions;
-    if(favorite){db = window.wholeFavorite["actions"];} //If the favorite action tag was clicked change databases
+    if(favorite){db = favoritesView()["actions"];} //Favourites: only the ones in the folder being viewed
     let actions = db[curClass];
 
     for(let action of actionBtn) //For each action buttons
@@ -1640,6 +1867,10 @@ function handleCardClick()
                 edit.name = currentTitle;
                 edit.style.margin = "0px 5px";
                 if(!quickAction){optionDiv.appendChild(edit);}
+
+                //Which extra folders this favourite is in
+                let chips = quickAction ? null : folderChips(spellLevel ? "spells" : "actions", spellLevel ?? curClass, currentTitle);
+                if(chips){optionDiv.prepend(chips);}
             }
 
             optionDiv.appendChild(slotSelect);
@@ -2577,6 +2808,7 @@ function handleCreateNew()
         spellLevel = "0";
         lastSpell = "Sacred Flame";
         setDoc(`playerChar/${window.player}/favorites/spells/${spellLevel}/${lastSpell}`, window.wholeSpells[spellLevel][lastSpell]);
+        ((window.wholeFavorite["spells"] ??= {})[spellLevel] ??= {})[lastSpell] = window.wholeSpells[spellLevel][lastSpell]; //For the form below
     }
 
     else if(this.innerHTML == "Create New Ability")
@@ -2584,6 +2816,7 @@ function handleCreateNew()
         curClass = "Artificer";
         lastAbility = "Magical Tinkering";
         setDoc(`playerChar/${window.player}/favorites/actions/${curClass}/${lastAbility}`, window.wholeActions[curClass][lastAbility]);
+        ((window.wholeFavorite["actions"] ??= {})[curClass] ??= {})[lastAbility] = window.wholeActions[curClass][lastAbility]; //For the form below
     }
 
     handleEditCard();
@@ -2718,6 +2951,7 @@ function uploadEdit()
     if(spellLevel)
     {
         deleteDoc(`playerChar/${window.player}/favorites/spells/${spellLevel}/${lastSpell}`);
+        moveFolderRefs("spells", spellLevel, lastSpell, spellDisc[1].value.trim(), spellDisc[0].value.trim()); //Folders follow it
 
         setDoc(`playerChar/${window.player}/favorites/spells/${spellDisc[1].value.trim()}/${spellDisc[0].value.trim()}`,
         {
@@ -2735,6 +2969,7 @@ function uploadEdit()
     else
     {
         deleteDoc(`playerChar/${window.player}/favorites/actions/${curClass}/${lastAbility}`);
+        moveFolderRefs("actions", curClass, lastAbility, spellDisc[1].value.trim(), spellDisc[0].value.trim()); //Folders follow it
 
         setDoc(`playerChar/${window.player}/favorites/actions/${spellDisc[1].value.trim()}/${spellDisc[0].value.trim()}`,
         {
@@ -2774,15 +3009,19 @@ function handleFavoriteBtn()
     else //Remove from favorites
     {
         this.lastChild.src = "images/unFavorite.png";
-        
-        if(spellLevel)
+        let kind = spellLevel ? "spells" : "actions";
+        let group = spellLevel ?? curClass;
+
+        if(favorite && favFolder)
         {
-            deleteDoc(`playerChar/${window.player}/favorites/spells/${spellLevel}/${titleName}`);
+            //Inside an extra folder the star only takes it out of that folder
+            deleteDoc(`playerChar/${window.player}/favorites/folders/${favFolder}/${kind}/${group}/${titleName}`);
         }
 
         else
         {
-            deleteDoc(`playerChar/${window.player}/favorites/actions/${curClass}/${titleName}`);
+            deleteDoc(`playerChar/${window.player}/favorites/${kind}/${group}/${titleName}`);
+            removeFolderRefs(kind, group, titleName); //And out of every folder
         }
         
         emptyCards();
