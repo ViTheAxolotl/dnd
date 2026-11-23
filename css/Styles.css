@@ -902,14 +902,14 @@ table, .itemSearch, #itemImg
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    gap: 10px;
+    gap: 8px 5px;       /* the same spacing as the main tab buttons above */
 }
-#actions > .center, #favorites > .center:not(.favFolders) { margin-bottom: 12px; }
+#actions > .center, #favorites > .center:not(.favFolders) { margin-bottom: 8px; }
 #actions > .center .gridButton, #favorites > .center:not(.favFolders) .gridButton,
 #spells .gridButton, #ability .gridButton, #spellsF .gridButton, #abilityF .gridButton,
 #spellsFQ .gridButton, #abilityFQ .gridButton
 {
-    flex: 0 1 calc(25% - 10px);
+    flex: 0 0 23%;      /* the same width as the main tab buttons */
     width: auto;
     margin: 0;
 }
@@ -919,8 +919,8 @@ table, .itemSearch, #itemImg
 /* Spell / ability browser search: its own line, with room above it */
 #searchDiv
 {
-    margin: 18px 0 6px;
-    padding-top: 14px;
+    margin: 12px 0 6px;
+    padding-top: 10px;
     border-top: 1px solid rgba(201, 162, 74, .2);
 }
 #searchDiv[style*="block"] { display: flex !important; justify-content: center; align-items: center; gap: 12px; }
@@ -2298,7 +2298,7 @@ body.embedded #cover p
 }
 .popupTitle { margin: 0 0 10px; font-family: var(--font-display); color: #e6c77e; }
 .popupMessage { margin: 0 auto 6px; max-width: 640px; white-space: pre-line; text-align: left; }
-.popupButtons { display: flex; justify-content: center; gap: 10px; margin-top: 16px; }
+.popupButtons { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 16px; }
 .popupButtons .gridButton { flex: 0 1 240px; margin: 0; }
 .popupSpell .card-body { text-align: left; font-size: 1.05rem; }
 .popupSpell .card-title { text-align: center; }
@@ -2361,3 +2361,10 @@ body:not(.embedded) #cover #holdingDiv .gridButton
 .popupInput { width: 100%; margin: 6px 0 2px; }
 /* Quick Action's folder bar sits above its Spells / Abilities buttons */
 body:not(.embedded) #cover #favFoldersQ { grid-row: 5; grid-column: 1 / -1; width: 100%; }
+
+/* "Which folder?" when favouriting: folder buttons wrap, sized to their names */
+.popupFolders .popupButtons .gridButton { flex: 0 1 auto; min-width: 150px; padding: 6px 18px; }
+.popupFolders .popupMessage { text-align: center; }
+.favFolderChips .favNewFolder { border-style: dashed; background: transparent; }
+.favFolderChips .favNewFolder::before { content: none; }
+.favNewFolderBox { width: 200px !important; padding: 3px 12px; border-radius: 999px; }
