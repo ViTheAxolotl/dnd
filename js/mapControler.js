@@ -201,7 +201,10 @@ function init()
     currentHp.onchange = updateHp;
     tempHp.onchange = tempHpUpdate;
     maxHp.innerHTML = "/ " + window.wholeChar[window.player]["stats"]["maxHp"];
-    searchBar[0].onchange = handleSearch;
+    //The list updates as you type (a short pause so fast typing doesn't redraw every key)
+    let searchTimer;
+    searchBar[0].oninput = () => {clearTimeout(searchTimer); searchTimer = setTimeout(handleSearch, 120);};
+    searchBar[0].onchange = () => {clearTimeout(searchTimer); handleSearch();};
 
     for(let arrow of arrows)
     {
