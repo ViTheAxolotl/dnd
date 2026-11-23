@@ -576,7 +576,25 @@ function favoritesView()
 {
     let all = window.wholeFavorite ?? {};
     let folder = favFolder ? all["folders"]?.[favFolder] : null;
-    if(!folder){return {spells: all["spells"] ?? {}, actions: all["actions"] ?? {}};}
+
+    if(!folder) //The character's own folder: every favourite except ones taken out of it
+    {
+        let hidden = all["notInMain"] ?? {};
+        let mainOnly = (kind) =>
+        {
+            let out = {};
+            for(let [group, names] of Object.entries(all[kind] ?? {}))
+            {
+                for(let [name, item] of Object.entries(names ?? {}))
+                {
+                    if(!hidden[kind]?.[group]?.[name]){(out[group] ??= {})[name] = item;}
+                }
+            }
+            out["hold"] = all[kind]?.["hold"] ?? {hold: "hold"}; //Create New
+            return out;
+        };
+        return {spells: mainOnly("spells"), actions: mainOnly("actions")};
+    }
 
     let pick = (kind) =>
     {
@@ -757,15 +775,31 @@ async function renameFavFolder()
     if(name && name != current){setDoc(`playerChar/${window.player}/favorites/folders/${favFolder}/name`, name);}
 }
 
+/** True if the favourite is in the character's own folder (not taken out of it). */
+function inMainFolder(kind, group, name)
+{
+    return !window.wholeFavorite?.["notInMain"]?.[kind]?.[group]?.[name];
+}
+
+/** How many folders (the character's own one included) hold this favourite. */
+function folderCount(kind, group, name)
+{
+    let folders = window.wholeFavorite?.["folders"] ?? {};
+    let count = inMainFolder(kind, group, name) ? 1 : 0;
+    for(let id of Object.keys(folders)){if(folders[id]?.[kind]?.[group]?.[name]){count++;}}
+    return count;
+}
+
 /**
- * The extra-folder buttons on a favourite's card: one per folder, lit when the card is
- * in it. Clicking adds it to / takes it out of that folder.
+ * The folder buttons on a favourite's card: the character's own folder, then each extra
+ * folder, lit when the card is in it. Clicking adds it to / takes it out of that folder.
+ * A favourite always stays in at least one folder (the star removes it altogether).
  */
 function folderChips(kind, group, name)
 {
     let folders = window.wholeFavorite?.["folders"] ?? {};
-    let ids = Object.keys(folders);
-    if(ids.length == 0){return null;}
+    let ids = Object.keys(folders).sort((x, y) => String(folders[x]?.["name"]).localeCompare(String(folders[y]?.["name"])));
+    if(ids.length == 0){return null;} //Only the character's own folder: nothing to choose
 
     let row = document.createElement("div");
     row.className = "favFolderChips";
@@ -773,24 +807,50 @@ function folderChips(kind, group, name)
     label.textContent = "Folders:";
     row.appendChild(label);
 
-    for(let id of ids.sort((x, y) => String(folders[x]?.["name"]).localeCompare(String(folders[y]?.["name"]))))
+    let paths = {}; //Where each chip's "in this folder" mark is saved
+    let isIn = {};
+    paths[""] = `playerChar/${window.player}/favorites/notInMain/${kind}/${group}/${name}`;
+    isIn[""] = inMainFolder(kind, group, name);
+    for(let id of ids)
+    {
+        paths[id] = `playerChar/${window.player}/favorites/folders/${id}/${kind}/${group}/${name}`;
+        isIn[id] = !!folders[id]?.[kind]?.[group]?.[name];
+    }
+
+    let chips = [];
+    let refresh = () =>
+    {
+        let count = Object.values(isIn).filter(Boolean).length;
+        for(let chip of chips)
+        {
+            let on = isIn[chip.dataset.folder];
+            chip.classList.toggle("on", on);
+            chip.title = on ? (count == 1 ? "It has to stay in at least one folder (use the star to remove it)" : "In this folder: click to take it out") : "Click to add it to this folder";
+        }
+    };
+
+    for(let id of ["", ...ids])
     {
         let chip = document.createElement("button");
-        let inFolder = !!folders[id]?.[kind]?.[group]?.[name];
-        chip.className = "statusChip" + (inFolder ? " on" : "");
-        chip.textContent = folders[id]?.["name"] ?? id;
-        chip.title = inFolder ? "In this folder: click to take it out" : "Click to add it to this folder";
+        chip.className = "statusChip";
+        chip.dataset.folder = id;
+        chip.textContent = id == "" ? toTitleCase(window.player) : (folders[id]?.["name"] ?? id);
         chip.onclick = (e) =>
         {
             e.stopPropagation();
-            let now = !chip.classList.contains("on");
-            setDoc(`playerChar/${window.player}/favorites/folders/${id}/${kind}/${group}/${name}`, now ? true : null);
-            chip.classList.toggle("on", now);
-            chip.title = now ? "In this folder: click to take it out" : "Click to add it to this folder";
+            let now = !isIn[id];
+            if(!now && Object.values(isIn).filter(Boolean).length == 1){return;} //Last folder: stays
+
+            isIn[id] = now;
+            if(id == ""){setDoc(paths[id], now ? null : true);} //Own folder: a "taken out" mark
+            else{setDoc(paths[id], now ? true : null);}
+            refresh();
         };
+        chips.push(chip);
         row.appendChild(chip);
     }
 
+    refresh();
     return row;
 }
 
@@ -801,6 +861,12 @@ function folderChips(kind, group, name)
 function moveFolderRefs(kind, oldGroup, oldName, newGroup, newName)
 {
     let folders = window.wholeFavorite?.["folders"] ?? {};
+
+    if(!inMainFolder(kind, oldGroup, oldName) && (oldGroup != newGroup || oldName != newName))
+    {
+        deleteDoc(`playerChar/${window.player}/favorites/notInMain/${kind}/${oldGroup}/${oldName}`);
+        setDoc(`playerChar/${window.player}/favorites/notInMain/${kind}/${newGroup}/${newName}`, true);
+    }
 
     for(let id of Object.keys(folders))
     {
@@ -822,6 +888,7 @@ function moveFolderRefs(kind, oldGroup, oldName, newGroup, newName)
 /** Takes a favourite out of every folder (when it's removed from favourites). */
 function removeFolderRefs(kind, group, name)
 {
+    if(!inMainFolder(kind, group, name)){deleteDoc(`playerChar/${window.player}/favorites/notInMain/${kind}/${group}/${name}`);}
     let folders = window.wholeFavorite?.["folders"] ?? {};
     for(let id of Object.keys(folders))
     {
@@ -1858,6 +1925,8 @@ function handleCardClick()
                 castBtn.innerHTML = "Select Targets";
             }
 
+            let folderRow = null; //Which folders this favourite is in (goes under the buttons)
+
             if(favorite) 
             {
                 let edit = document.createElement("button");
@@ -1869,8 +1938,7 @@ function handleCardClick()
                 if(!quickAction){optionDiv.appendChild(edit);}
 
                 //Which extra folders this favourite is in
-                let chips = quickAction ? null : folderChips(spellLevel ? "spells" : "actions", spellLevel ?? curClass, currentTitle);
-                if(chips){optionDiv.prepend(chips);}
+                folderRow = quickAction ? null : folderChips(spellLevel ? "spells" : "actions", spellLevel ?? curClass, currentTitle);
             }
 
             optionDiv.appendChild(slotSelect);
@@ -1878,6 +1946,7 @@ function handleCardClick()
             if(window.player == "Kody" || window.player == "Vi"){optionDiv.appendChild(critSelect);}
             optionDiv.appendChild(flankSelect);
             optionDiv.appendChild(castBtn);
+            if(folderRow){optionDiv.appendChild(folderRow);}
             
             if(!quickAction)
             {
@@ -3012,7 +3081,7 @@ function handleFavoriteBtn()
         let kind = spellLevel ? "spells" : "actions";
         let group = spellLevel ?? curClass;
 
-        if(favorite && favFolder)
+        if(favorite && favFolder && folderCount(kind, group, titleName) > 1)
         {
             //Inside an extra folder the star only takes it out of that folder
             deleteDoc(`playerChar/${window.player}/favorites/folders/${favFolder}/${kind}/${group}/${titleName}`);
