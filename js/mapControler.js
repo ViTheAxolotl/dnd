@@ -1422,7 +1422,9 @@ function handleCardClick()
 
     if(lastAbility != currentTitle && lastSpell != currentTitle) //If they didn't click the same card twice
     {
-        if(searchBar[0].value != "" || quickAction)
+        //Options show once the list is narrowed to this card's name (a partial search like
+        //"tele" can still list several cards, so it's narrowed first, below)
+        if(searchBar[0].value == currentTitle || quickAction)
         {
             let optionDiv = document.createElement("div");
             optionDiv.classList.add("center");
@@ -1627,8 +1629,8 @@ function handleCardClick()
             
             if(!quickAction)
             {
-                document.getElementById("cards").childNodes[0].appendChild(wrapper);
-                document.getElementById("cards").childNodes[0].appendChild(targetsDiv);
+                this.parentNode.appendChild(wrapper);    //On the card that was clicked
+                this.parentNode.appendChild(targetsDiv);
                 if(this.parentNode.nextSibling != null){placeBefore(optionDiv, this.parentNode.nextSibling);}
                 else{document.getElementById("cards").appendChild(optionDiv);}
             }
@@ -1641,9 +1643,12 @@ function handleCardClick()
 
         else
         {
+            //Narrow the list to this card's name, then open the clicked card again (the old
+            //card elements are replaced, so find it by its title)
             searchBar[0].value = currentTitle;
             handleSearch();
-            this.click();
+            let again = [...document.querySelectorAll("#cards .card-body")].find((card) => (card.childNodes[0]?.innerHTML ?? card.innerHTML) == currentTitle);
+            again?.click();
         }
         
     }
