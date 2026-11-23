@@ -63,6 +63,7 @@ let db;
 // The spell / ability card last clicked, i.e. the one that will be used.
 let lastSpell;
 let lastAbility;
+let searchFromCard = false; //True when the search text was filled in by clicking a card (not typed)
 let changeTokenBtn;
 let currentAction;
 let zoomLevel = 100;
@@ -203,7 +204,7 @@ function init()
     maxHp.innerHTML = "/ " + window.wholeChar[window.player]["stats"]["maxHp"];
     //The list updates as you type (a short pause so fast typing doesn't redraw every key)
     let searchTimer;
-    searchBar[0].oninput = () => {clearTimeout(searchTimer); searchTimer = setTimeout(handleSearch, 120);};
+    searchBar[0].oninput = () => {searchFromCard = false; clearTimeout(searchTimer); searchTimer = setTimeout(handleSearch, 120);};
     searchBar[0].onchange = () => {clearTimeout(searchTimer); handleSearch();};
 
     for(let arrow of arrows)
@@ -499,6 +500,9 @@ function handleChangeFirstDisplay()
     {
         emptyCards(); 
         document.getElementById("searchDiv").style.display = "none"; //Makes sure the search bar is hidden.
+        searchBar[0].value = ""; //A new tab starts with a fresh search
+        lastSpell = "";
+        lastAbility = "";
 
         for(let fButton of firstMenu) //For each button in the first list
         {
@@ -1232,6 +1236,13 @@ function handleShowSpells()
 
     emptyCards()
 
+    //The search bar always shows with a list (even when old search text filters it), so it
+    //can be changed or cleared
+    if(!quickAction){document.getElementById("searchDiv").style.display = "block";}
+
+    //A card's name put in the search by clicking it doesn't carry over to another list
+    if(searchFromCard){searchBar[0].value = ""; searchFromCard = false; lastSpell = ""; lastAbility = "";}
+
     if(searchBar[0].value != "") //If there is something in hte search bar
     {
         handleSearch();
@@ -1276,6 +1287,13 @@ function handleShowActions()
     this.classList.add("selected");
 
     emptyCards();
+
+    //The search bar always shows with a list (even when old search text filters it), so it
+    //can be changed or cleared
+    if(!quickAction){document.getElementById("searchDiv").style.display = "block";}
+
+    //A card's name put in the search by clicking it doesn't carry over to another list
+    if(searchFromCard){searchBar[0].value = ""; searchFromCard = false; lastSpell = ""; lastAbility = "";}
 
     if(searchBar[0].value != "") //If search bar has something in it
     {
@@ -1649,6 +1667,7 @@ function handleCardClick()
             //Narrow the list to this card's name, then open the clicked card again (the old
             //card elements are replaced, so find it by its title)
             searchBar[0].value = currentTitle;
+            searchFromCard = true;
             handleSearch();
             let again = [...document.querySelectorAll("#cards .card-body")].find((card) => (card.childNodes[0]?.innerHTML ?? card.innerHTML) == currentTitle);
             again?.click();
