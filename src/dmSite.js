@@ -24,8 +24,8 @@
 import { ref, onValue, get } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, placeBefore, createLabel, wait, storage, tokenCategory, tokenCategoryList, makeCategoryFilter, UNCATEGORIZED, CHARACTER_CATEGORY, ALL_CATEGORIES, dbRef, login, DM_LOGIN, campaign, firebaseConfig, blankCharacter, sampleStats, findSpell } from '../js/viMethods.js';
-import { parseStatBlock, statBlockToPreset, allyTokenKey, favoritesFromStatBlock, open5eToParsed, blockIdFromLink } from './statBlock.js';
+import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, placeBefore, createLabel, wait, storage, tokenCategory, tokenCategoryList, makeCategoryFilter, UNCATEGORIZED, CHARACTER_CATEGORY, ALL_CATEGORIES, dbRef, login, DM_LOGIN, campaign, firebaseConfig, blankCharacter, sampleStats, findSpell, findSpellIn, SPELL_SERVICE } from '../js/viMethods.js';
+import { parseStatBlock, statBlockToPreset, allyTokenKey, favoritesFromStatBlock, open5eToParsed, blockIdFromLink, parseSpellText } from './statBlock.js';
 import { uploadBytes, getDownloadURL, deleteObject, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
 
@@ -145,6 +145,11 @@ function init()
             case "paste":
                 fiveButtons.push(button);
                 button.onclick = handlePasteStatBlock;
+                break;
+
+            case "pasteSpell":
+                fiveButtons.push(button);
+                button.onclick = handlePasteSpell;
                 break;
         }
     }
@@ -2288,6 +2293,159 @@ function drawStatPreview(panel, p)
     add("Lore", p.description);
     add("Environments", p.environments?.join(", "));
     add("Couldn't place", p.unsorted?.join(" | "));
+}
+
+/**
+ * "Paste Spell": paste a spell's text (from a book, D&D Beyond...), sort it into the site's
+ * spell fields with the roll codes added, check or fix them, then save. Saved spells go to
+ * the Worker's list, so the D&D and Sheets sites both have them (see findSpell in viMethods.js).
+ */
+function handlePasteSpell()
+{
+    hideButtons();
+
+    let screen = document.createElement("div");
+    screen.id = "spellPasteScreen";
+
+    let section = campaignSection("Paste a spell");
+    let box = document.createElement("textarea");
+    box.id = "spellPasteBox";
+    box.placeholder = "Paste the whole spell here, starting from its name…";
+    section.appendChild(box);
+
+    let line = document.createElement("div");
+    line.classList = "campaignLine";
+    let sortBtn = makeRowButton("Sort it");
+    let backBtn = makeRowButton("Back", () => {window.location.reload();});
+    line.appendChild(sortBtn);
+    line.appendChild(backBtn);
+    section.appendChild(line);
+    let status = campaignStatus(section);
+    screen.appendChild(section);
+
+    // --- The sorted spell, as a form to check and fix ---
+    let formSection = campaignSection("Check it, then save");
+    formSection.style.display = "none";
+    let form = document.createElement("div");
+    form.id = "spellPasteForm";
+    let fields = {};
+    let addField = (key, label, element) =>
+    {
+        let row = document.createElement("label");
+        row.classList = "spellField";
+        let text = document.createElement("span");
+        text.textContent = label;
+        row.appendChild(text);
+        row.appendChild(element);
+        form.appendChild(row);
+        fields[key] = element;
+    };
+
+    for(let [key, label] of [["name", "Name"], ["castTime", "Casting Time"], ["range", "Range"], ["components", "Components"], ["duration", "Duration"]])
+    {
+        let input = document.createElement("input");
+        addField(key, label, input);
+    }
+
+    let levelSelect = document.createElement("select");
+    for(let lv = 0; lv <= 9; lv++)
+    {
+        let option = document.createElement("option");
+        option.value = `${lv}`;
+        option.text = lv == 0 ? "Cantrip" : `Level ${lv}`;
+        levelSelect.appendChild(option);
+    }
+    addField("level", "Level", levelSelect);
+
+    let concentration = document.createElement("input");
+    concentration.type = "checkbox";
+    addField("concentration", "Concentration", concentration);
+
+    let description = document.createElement("textarea");
+    description.id = "spellPasteDescription";
+    addField("description", "Description (with roll codes)", description);
+    formSection.appendChild(form);
+
+    let note = document.createElement("p");
+    note.classList = "campaignNote";
+    note.textContent = "Check the roll codes ({@damage}, {@save}, {@scaledamage}...) and fix anything the sorting got wrong. The help page's Actions tab lists every tag.";
+    formSection.appendChild(note);
+
+    let saveLine = document.createElement("div");
+    saveLine.classList = "campaignLine";
+    let saveBtn = makeRowButton("Save spell");
+    saveLine.appendChild(saveBtn);
+    formSection.appendChild(saveLine);
+    let saveStatus = campaignStatus(formSection);
+    screen.appendChild(formSection);
+    div.appendChild(screen);
+
+    sortBtn.onclick = () =>
+    {
+        let spell = parseSpellText(box.value);
+        if(!spell.name || !spell.description){status("Couldn't find a name and description. Paste the whole spell, starting from its name.", true); return;}
+
+        fields.name.value = spell.name;
+        fields.castTime.value = spell.castTime;
+        fields.range.value = spell.range;
+        fields.components.value = spell.components;
+        fields.duration.value = spell.duration;
+        fields.level.value = spell.level === "" ? "1" : spell.level;
+        fields.concentration.checked = spell.concentration == "true";
+        fields.description.value = spell.description;
+        formSection.style.display = "";
+        saveStatus("");
+
+        let missing = [];
+        if(spell.level === ""){missing.push("level");}
+        for(let key of ["castTime", "range", "components", "duration"]){if(!spell[key]){missing.push(key);}}
+        status(missing.length ? `Sorted. Couldn't find: ${missing.join(", ")}. Fill those in below.` : "Sorted. Check it below, then save.", missing.length > 0);
+        formSection.scrollIntoView({behavior: "smooth", block: "start"});
+    };
+
+    saveBtn.onclick = async () =>
+    {
+        let spell = {
+            name: fields.name.value.trim(),
+            level: fields.level.value,
+            castTime: fields.castTime.value.trim(),
+            range: fields.range.value.trim(),
+            components: fields.components.value.trim(),
+            duration: fields.duration.value.trim(),
+            concentration: fields.concentration.checked ? "true" : "false",
+            description: fields.description.value.trim(),
+        };
+        if(!spell.name || !spell.description){saveStatus("It needs a name and a description.", true); return;}
+
+        saveBtn.disabled = true;
+        saveStatus("Saving…");
+
+        try
+        {
+            let response = await fetch(`${SPELL_SERVICE}/spell`, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({spell})});
+            let data = await response.json().catch(() => ({}));
+            if(!response.ok){throw new Error(data.error ?? `The Worker answered ${response.status}.`);}
+
+            //Use it on this page straight away (replacing an older copy with the same name)
+            let spells = window.top.parent.wholeSpells ?? {};
+            for(let list of Object.values(spells)){for(let key of Object.keys(list ?? {})){if(key.toLowerCase() == data.spell.name.toLowerCase()){delete list[key];}}}
+            (spells[data.level] ??= {})[data.spell.name] = data.spell;
+
+            //spells.json's own copy of a spell always wins when the sites load
+            let fileSpells = await fetch("src/spells.json").then((res) => res.json()).catch(() => ({}));
+            let warn = findSpellIn(fileSpells, data.spell.name) ? ` Note: spells.json already has a ${data.spell.name}, and the sites use that copy. Give this one a different name to keep both.` : "";
+            let where = data.level == "0" ? "the cantrips" : `level ${data.level}`;
+            saveStatus(`Saved ${data.spell.name} to ${where}. Both sites will have it.${warn}`, warn != "");
+        }
+
+        catch(error)
+        {
+            console.error(error);
+            saveStatus(`Couldn't save it: ${error.message}`, true);
+        }
+
+        finally{saveBtn.disabled = false;}
+    };
 }
 
 /**

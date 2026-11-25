@@ -2420,3 +2420,23 @@ body:not(.embedded) #cover #favFoldersQ { grid-row: 5; grid-column: 1 / -1; widt
 .tagHelp li { margin: 3px 0; }
 .tagHelp .tagHeading { list-style: none; margin: 12px 0 4px -22px; font-weight: bold; text-decoration: underline; }
 .tagHelp .tagHeading:first-child { margin-top: 4px; }
+
+/* ---- DM Site: Paste Spell ---- */
+#spellPasteBox { width: 100%; min-height: 220px; padding: 8px; resize: vertical; }
+#spellPasteForm { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; text-align: left; }
+#spellPasteForm .spellField { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+#spellPasteForm .spellField input:not([type=checkbox]), #spellPasteForm .spellField select { width: 100%; padding: 5px; }
+#spellPasteForm .spellField input[type=checkbox] { width: 22px; height: 22px; }
+#spellPasteForm .spellField:last-child { grid-column: 1 / -1; }
+#spellPasteDescription { width: 100%; min-height: 260px; padding: 8px; resize: vertical; }
+
+/* ---- Favourites: roomier spacing between the folder bar, Spells | Abilities and the level / tag buttons ---- */
+#favorites .favFolders { gap: 12px; padding-bottom: 16px; margin-bottom: 18px; }
+#favorites .favFolders::after { margin-top: -12px; }   /* the line break between folders and folder tools adds no extra gap */
+#favorites > .center:not(.favFolders) { gap: 10px; margin-bottom: 16px; }
+#spellsF, #abilityF, #spellsFQ, #abilityFQ { gap: 10px 10px; margin-bottom: 16px; }
+#spellsF .gridButton, #abilityF .gridButton, #spellsFQ .gridButton, #abilityFQ .gridButton
+{
+    margin: 2px !important;   /* keeps a gap even where the buttons size to their text */
+    padding: 8px 20px;
+}
