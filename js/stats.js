@@ -16,7 +16,7 @@
  */
 
 "use strict";
-import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendDiscordMessage, showPopup } from './viMethods.js';
+import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendDiscordMessage, showPopup, findSpell, showSpellCard, showSpellOnRoll20 } from './viMethods.js';
 
 let stats;
 let firstRun = true;
@@ -189,38 +189,12 @@ function showMonsterSheet(token)
 /**
  * Opens a spell's card by name (any level), the same way the eye icons do.
  */
-function showSpellByName(name)
+async function showSpellByName(name)
 {
-    let target = String(name).toLowerCase().replace(/\s*\(.*?\)/g, "").trim();
-    let spell = null;
-
-    for(let level of Object.values(parent.wholeSpells ?? {}))
-    {
-        for(let [key, s] of Object.entries(level ?? {}))
-        {
-            if(key != "hold" && (key.toLowerCase() == target || String(s?.["name"] ?? "").toLowerCase() == target)){spell = s; break;}
-        }
-        if(spell){break;}
-    }
-
-    if(!spell)
-    {
-        let link = `https://roll20.net/compendium/dnd5e/${encodeURIComponent(toTitleCase(target))}`;
-        showPopup({boxClass: "popupTall", title: toTitleCase(target), html: `<iframe class="popupFrame" src="${link}" title="spell"></iframe>`});
-        return;
-    }
-
-    let line = (label, v) => `<p class="card-text">${label}: ${v ?? ""}</p>`;
-    showPopup({boxClass: "popupSpell", html:
-        `<div class="card-body notes">
-            <h5 class="card-title">${spell["name"]}</h5>
-            ${line("Cast Time", spell["castTime"])}
-            ${line("Range", spell["range"])}
-            ${line("Components", spell["components"])}
-            ${line("Duration", spell["duration"])}
-            ${spell["concentration"] == "true" ? `<p class="card-text">Concentration</p>` : ""}
-            <p class="card-text">${spell["description"]}</p>
-        </div>`});
+    let clean = String(name).replace(/\s*\(.*?\)/g, "").trim();
+    let found = await findSpell(clean, parent.wholeSpells);
+    if(found){showSpellCard(found.spell);}
+    else{showSpellOnRoll20(toTitleCase(clean));}
 }
 
 /**
@@ -712,45 +686,18 @@ function updateStat()
 }
 
 /**
- * Eye icon next to a spell: if the spell is in the site's spell list, shows its details
- * on a card; otherwise opens it on Roll20's compendium in a frame.
+ * Eye icon next to a spell: shows its card (any capitalisation, any level). A spell that isn't
+ * in the list is looked up on Open5e through the Worker and added for next time; one Open5e
+ * doesn't have either opens on Roll20. Shown on the dashboard itself, so it's full size.
  */
-function showSpell()
+async function showSpell()
 {
-    let spellName = toTitleCase(document.getElementById(this.id.slice(0, this.id.length - 4)).value);
-    let link;
-    let spellLevel = this.id;
+    let spellName = document.getElementById(this.id.slice(0, this.id.length - 4)).value.trim();
+    if(spellName == ""){return;}
 
-    if(spellLevel.includes("can")){spellLevel = "0";}
-    else{spellLevel = spellLevel.slice(3, 4);}
-
-    if(spellName != "")
-    {
-        //Shown on the dashboard itself (not inside this zoomed sheet), so it's full size
-        let spell = parent.wholeSpells?.[spellLevel]?.[spellName];
-
-        if(spell)
-        {
-            let line = (label, value) => `<p class="card-text">${label}: ${value}</p>`;
-            showPopup({boxClass: "popupSpell", html:
-                `<div class="card-body notes">
-                    <h5 class="card-title">${spell["name"]}</h5>
-                    ${line("Cast Time", spell["castTime"])}
-                    ${line("Range", spell["range"])}
-                    ${line("Components", spell["components"])}
-                    ${line("Duration", spell["duration"])}
-                    ${spell["concentration"] == "true" ? `<p class="card-text">Concentration</p>` : ""}
-                    <p class="card-text">${spell["description"]}</p>
-                </div>`});
-        }
-
-        else
-        {
-            //Not in the site's spell list: open it on Roll20 in a tall box
-            link = `https://roll20.net/compendium/dnd5e/${encodeURIComponent(spellName)}`;
-            showPopup({boxClass: "popupTall", title: spellName, html: `<iframe class="popupFrame" src="${link}" title="${spellName}"></iframe>`});
-        }
-    }
+    let found = await findSpell(spellName, parent.wholeSpells);
+    if(found){showSpellCard(found.spell);}
+    else{showSpellOnRoll20(toTitleCase(spellName));}
 }
 
 /* ------------------------------------------------------------------------------------ *

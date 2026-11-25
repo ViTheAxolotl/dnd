@@ -24,7 +24,7 @@
 import { ref, onValue, get } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, placeBefore, createLabel, wait, storage, tokenCategory, tokenCategoryList, makeCategoryFilter, UNCATEGORIZED, CHARACTER_CATEGORY, ALL_CATEGORIES, dbRef, login, DM_LOGIN, campaign, firebaseConfig, blankCharacter, sampleStats } from '../js/viMethods.js';
+import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, placeBefore, createLabel, wait, storage, tokenCategory, tokenCategoryList, makeCategoryFilter, UNCATEGORIZED, CHARACTER_CATEGORY, ALL_CATEGORIES, dbRef, login, DM_LOGIN, campaign, firebaseConfig, blankCharacter, sampleStats, findSpell } from '../js/viMethods.js';
 import { parseStatBlock, statBlockToPreset, allyTokenKey, favoritesFromStatBlock, open5eToParsed, blockIdFromLink } from './statBlock.js';
 import { uploadBytes, getDownloadURL, deleteObject, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
@@ -2059,7 +2059,7 @@ function handlePasteStatBlock()
 
             let notes = [`Saved <b>${parsed.name}</b> to Preset Tokens (HP ${token.maxHp}, AC ${token.AC}).`];
             notes.push(`Folder <b>${parsed.name}</b> ${folder.created ? "created" : "updated"}: ${folder.spells} spell${folder.spells == 1 ? "" : "s"}, ${folder.abilities} abilit${folder.abilities == 1 ? "y" : "ies"}.`);
-            if(folder.missing.length > 0){notes.push(`Not in the spell list, so left out: ${folder.missing.join(", ")}.`);}
+            if(folder.missing.length > 0){notes.push(`Not in the spell list or on Open5e, so left out: ${folder.missing.join(", ")}.`);}
             status(notes.join(" "));
         }
 
@@ -2209,6 +2209,13 @@ async function saveMonsterFolder(parsed)
     }
 
     let wanted = favoritesFromStatBlock(parsed, window.top.parent.wholeSpells);
+
+    //Spells not in the list yet: look them up on Open5e through the Worker (it adds them), then try again
+    if(wanted.missing.length > 0)
+    {
+        await Promise.all(wanted.missing.map((name) => findSpell(name.replace(/\s*\(.*?\)/g, ""), window.top.parent.wholeSpells)));
+        wanted = favoritesFromStatBlock(parsed, window.top.parent.wholeSpells);
+    }
     let saves = [setDoc(`${base}/folders/${id}/name`, parsed.name)];
 
     for(let s of wanted.spells)
