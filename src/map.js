@@ -34,7 +34,7 @@
 "use strict";
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
-import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, setMapValue, placeBefore, quickAction, setQuickAction, wait, getRandomItem, dbRef, safeReload, isValidKey, titleWithName, shiftRow } from '../js/viMethods.js';
+import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, setMapValue, placeBefore, quickAction, setQuickAction, wait, getRandomItem, dbRef, safeReload, isValidKey, titleWithName, shiftRow, rollTagHelp } from '../js/viMethods.js';
 
 let map = setMapValue();
 let div = document.getElementById("gridMap");
@@ -1131,7 +1131,7 @@ function handleViewTokens(t)
 function changeInstructions()
 {
     let labels = ["Map", "Stats", "Actions", "Favorites"];
-    let fill = ["The map will change once a character moves, if you click on a character you can see it enlarged. If you click on one of your own summons you will become it. Click an empty spot to drop a bubble everyone can see.<br><br><b>Measuring distance:</b> right-click a square, move the mouse, then right-click another square. Everyone sees the line and distance in your token's border colour for 5 seconds. Each square is 5ft; diagonals alternate 5ft and 10ft. Press Esc to cancel.", "The stats section contains controls to change the maps status. To move your token you can use the D-Pad or hold Ctrl and the arrow key. Press <b>Change Status</b> under your Status to pick keywords for your token, or type them in its command line with + / -. The keywords:", "Here is all the spells and abilities for your characters. You can search or scroll to find the spell/ability you wish to use. Once you find it click on it, from here you can use the ability or add it to your favorites. Abilities that have a {@ will preform actions on cast. Then it will display the results on the display section on the webpage.", "In this section it will show your spells and actions you have favorited, this can be used to organize your abilities. If you click on one of the abilities it will let you edit them. You can also create custom abilites and spells from here. If you wish to create a button to better organise your abilites, all you need to do is select edit on the ability and change the Tag into what you want."];
+    let fill = ["The map will change once a character moves, if you click on a character you can see it enlarged. If you click on one of your own summons you will become it. Click an empty spot to drop a bubble everyone can see.<br><br><b>Measuring distance:</b> right-click a square, move the mouse, then right-click another square. Everyone sees the line and distance in your token's border colour for 5 seconds. Each square is 5ft; diagonals alternate 5ft and 10ft. Press Esc to cancel.", "The stats section contains controls to change the maps status. To move your token you can use the D-Pad or hold Ctrl and the arrow key. Press <b>Change Status</b> under your Status to pick keywords for your token, or type them in its command line with + / -. The keywords:", "Here is all the spells and abilities for your characters. You can search or scroll to find the spell/ability you wish to use. Once you find it click on it, from here you can use the ability or add it to your favorites. Abilities with tags like {@damage} do something when used, and the results show in the display section of the page. The tags:", "In this section it will show your spells and actions you have favorited, this can be used to organize your abilities. If you click on one of the abilities it will let you edit them. You can also create custom abilites and spells from here. If you wish to create a button to better organise your abilites, all you need to do is select edit on the ability and change the Tag into what you want."];
     let keyWords = {"Large" : "This will make your token a large creature taking up a 2 x 2 square.", "Huge" : "This will make your token a huge creature taking up a 3 x 3 square.", "Gargantuan" : "This will make your token an Gargantuan creature taking up a 4 x 4 square.", "Top" : "This will make your token on top of other tokens.", "Bottom" : "This will make your token underneath others.", "Invisible" : "This will make only you be able to see your token.",
         "Rotate" : "Rotates your token by any number of degrees, e.g. <b>Rotate 45</b> or <b>Rotate -30</b> (Rot 45 works too). Positive turns clockwise.",
         "FlipX / FlipY" : "Mirrors your token left-to-right (<b>FlipX</b>) or top-to-bottom (<b>FlipY</b>). You can use both, and combine them with Rotate.",
@@ -1165,8 +1165,12 @@ function changeInstructions()
                 "</ul>Separate keywords with commas, e.g. <b>Large, Rotate 45, FlipX</b>";
             break;
 
-        case "Map":
         case "Actions":
+            //Every roll tag, from the same list the edit form shows (viMethods.js ROLL_TAGS)
+            display.innerHTML = fill[labels.indexOf(this.name)] + `<ul class="tagHelp">${rollTagHelp()}</ul>`;
+            break;
+
+        case "Map":
         case "Favorites":
             display.innerHTML = fill[labels.indexOf(this.name)];
             break;

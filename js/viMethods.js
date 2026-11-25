@@ -945,3 +945,51 @@ export function showSpellOnRoll20(name)
     return showPopup({boxClass: "popupTall", title: name, html: `<iframe class="popupFrame" src="${link}" title="${name}"></iframe>`});
 }
 
+/* ------------------------------------------------------------------------------------ *
+ *  The roll tags spells and abilities can use (read by mapControler.js handleUseAction). *
+ *  Shown on the help page's Actions tab and when editing a spell/ability, so both stay   *
+ *  the same. Add new tags here.                                                          *
+ * ------------------------------------------------------------------------------------ */
+export const ROLL_TAGS = [
+    ["Rolling to hit", [
+        ["{@damage 3d4}", "Rolls to hit against each target's AC, then 3d4 damage on a hit. If the text says <b>regains</b>, it heals instead."],
+        ["{+3toHit}", "Uses +3 as the attack bonus instead of asking for it (e.g. {+7toHit} for a monster's attack)."],
+    ]],
+    ["Saves and checks", [
+        ["{@save}", "The targets make a save. The ability is taken from the text (\"Dexterity saving throw\") or from {@skill}."],
+        ["{@save 2d6}", "The same, and rolls 2d6 damage (half on a success if the text says so)."],
+        ["{DC15}", "The DC to beat for that {@save}, instead of asking for your Spell DC."],
+        ["{@skill Perception}", "Which skill or check the targets roll for the {@save}."],
+        ["{@respond}", "Answers the save or check the DM asked for: rolls it and applies any damage."],
+    ]],
+    ["Other rolls", [
+        ["{@sDice 2d4}", "Just rolls 2d4 on every target, no attack roll (extra damage, healing...)."],
+        ["{@scaledamage 1d8+4|1-9|1d8}", "Casting at higher levels: adds a level dropdown. 1d8+4 at its base level; it can be cast from level 1 to 9; +1d8 for each level above."],
+        ["{@sneak}", "Rolls Sneak Attack: half your level (rounded up) in d6s."],
+        ["{@absorb}", "Absorption: adds a level dropdown and rolls the dice for the level picked."],
+        ["{@infuseRate}", "Rolls a d100 infusion check against your infusion rate."],
+    ]],
+    ["Hit points, rage and summons", [
+        ["{@temp 5}", "Gives each target 5 hit points (up to their max), or 5 temporary hit points if the text says <b>temporary hit points</b>."],
+        ["{@Rage}", "Turns your rage on (rage adds +2 to {@damage} rolls)."],
+        ["{@Summon pictureName:Hp:border:AC:Modifiers:Quantity}", "Puts tokens on the map. The picture name decides the picture and id (a universal one is 'genericA'), then max HP, border colour, AC, token modifiers and how many. E.g. {@Summon genericA:10:blue:15:none:4} summons 4 generic tokens with 10 HP and 15 AC."],
+    ]],
+    ["Using your sheet's numbers", [
+        ["$Strength$", "Puts in a stat from your character sheet. Works with any stat name, e.g. {@damage 1d8+$Strength$}."],
+        ["$spellBonus$", "Your spell attack bonus, e.g. {@damage 2d8+$spellBonus$} for healing."],
+    ]],
+    ["Layout", [
+        ["{@Choice}", "Starts a bullet point."],
+        ["{@enter}", "Starts a new line, as if you pressed Enter."],
+    ]],
+];
+
+/** The roll tags as a list (for innerHTML). */
+export function rollTagHelp()
+{
+    return ROLL_TAGS.map(([heading, tags]) =>
+        `<li class="tagHeading">${heading}</li>` + tags.map(([tag, what]) => `<li><b>${tag}</b>: ${what}</li>`).join("")
+    ).join("") +
+    `<li class="tagHeading">Labels only</li><li>Other tags like {@condition unconscious}, {@spell shield} or {@action Dash} just name something in the text. They don't roll anything.</li>`;
+}
+
