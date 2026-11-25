@@ -1150,6 +1150,16 @@ table, .itemSearch, #itemImg
     line-height: 1.6;
 }
 
+/* {@Choice} bullets: each sits inside its own card paragraph, so cancel the paragraph indent and
+   give the bullet room, so wrapped lines line up under the first one, like a normal list */
+.card-text > li, .card-body > li
+{
+    text-indent: 0;
+    margin-left: 2.2em;
+    padding-left: .3em;
+    list-style-position: outside;
+}
+
 .notes b, .notes strong
 {
     color: #5e1d14;
