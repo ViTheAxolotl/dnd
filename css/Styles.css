@@ -2421,14 +2421,6 @@ body:not(.embedded) #cover #favFoldersQ { grid-row: 5; grid-column: 1 / -1; widt
 .tagHelp .tagHeading { list-style: none; margin: 12px 0 4px -22px; font-weight: bold; text-decoration: underline; }
 .tagHelp .tagHeading:first-child { margin-top: 4px; }
 
-/* ---- DM Site: Paste Spell ---- */
-#spellPasteBox { width: 100%; min-height: 220px; padding: 8px; resize: vertical; }
-#spellPasteForm { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; text-align: left; }
-#spellPasteForm .spellField { display: flex; flex-direction: column; gap: 3px; margin: 0; }
-#spellPasteForm .spellField input:not([type=checkbox]), #spellPasteForm .spellField select { width: 100%; padding: 5px; }
-#spellPasteForm .spellField input[type=checkbox] { width: 22px; height: 22px; }
-#spellPasteForm .spellField:last-child { grid-column: 1 / -1; }
-#spellPasteDescription { width: 100%; min-height: 260px; padding: 8px; resize: vertical; }
 
 /* ---- Favourites: roomier spacing between the folder bar, Spells | Abilities and the level / tag buttons ---- */
 #favorites .favFolders { gap: 12px; padding-bottom: 16px; margin-bottom: 18px; }
@@ -2440,3 +2432,20 @@ body:not(.embedded) #cover #favFoldersQ { grid-row: 5; grid-column: 1 / -1; widt
     margin: 2px !important;   /* keeps a gap even where the buttons size to their text */
     padding: 8px 20px;
 }
+
+/* ---- Spell / ability editor popup (js/spellEditor.js): drawn full size on the main page ---- */
+.popupBox.popupSpellEditor { width: min(880px, 100%); text-align: left; }
+.popupSpellEditor .popupTitle { text-align: center; }
+.popupSpellEditor .popupMessage { max-width: none; text-indent: 0; }
+.popupSpellEditor .popupMessage.error { color: #ff8a80; }
+.popupSpellEditor details { margin: 0 0 12px; }
+.popupSpellEditor summary { cursor: pointer; color: #e6c77e; margin-bottom: 8px; }
+#sePaste { width: 100%; min-height: 140px; padding: 8px; resize: vertical; }
+#seForm { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 16px; }
+#seForm .seField { display: flex; flex-direction: column; gap: 3px; margin: 0; }
+#seForm .seField input, #seForm .seField select { width: 100%; padding: 5px; }
+#seForm .seWide { grid-column: 1 / -1; }
+#seForm .seCheck { display: flex; align-items: center; gap: 8px; margin: 0; }
+#seForm .seCheck input { width: 20px; height: 20px; flex: none; }
+#seDesc { width: 100%; min-height: 220px; padding: 8px; resize: vertical; }
+.popupSpellEditor .seHelp .tagHelp { color: var(--parchment); max-height: 300px; overflow-y: auto; }

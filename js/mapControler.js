@@ -27,7 +27,8 @@
 "use strict";
 
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
-import { toTitleCase, database, createCard, setDoc, deleteDoc, placeBefore, createLabel, clenseInput, reload, setMapValue, quickAction, setQuickAction, skillDecrypt, sendDiscordMessage, storage, tokenCategory, makeCategoryFilter, CHARACTER_CATEGORY, dbRef, showPopup, findSpell, findAbility, rollTagHelp } from './viMethods.js';
+import { toTitleCase, database, createCard, setDoc, deleteDoc, placeBefore, createLabel, clenseInput, reload, setMapValue, quickAction, setQuickAction, skillDecrypt, sendDiscordMessage, storage, tokenCategory, makeCategoryFilter, CHARACTER_CATEGORY, dbRef, showPopup, findSpell, findAbility, rollTagHelp, removeNamed } from './viMethods.js';
+import { openSpellEditor, shareSpell, shareAbility } from './spellEditor.js';
 import { uploadBytes, getDownloadURL, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
 
@@ -2100,7 +2101,7 @@ function handleCardClick()
             {
                 let edit = document.createElement("button");
                 edit.classList.add("gridButton");
-                edit.onclick = handleEditCard;
+                edit.onclick = handleEditFavorite;
                 edit.innerHTML = "Edit";
                 edit.name = currentTitle;
                 edit.style.margin = "0px 5px";
@@ -3047,188 +3048,74 @@ function splitRoll(discription, splitValue)
 }
 
 /**
- * "Create New Spell/Ability" on the ★ tab: copies a starter entry (Sacred Flame or
- * Magical Tinkering) into the player's favourites and opens it for editing.
+ * "Create New Spell" / "Create New Ability" on the ★ tab: the spell / ability editor, empty
+ * (paste one in and press Sort it, or fill the boxes yourself).
  */
 function handleCreateNew()
 {
-    if(this.innerHTML == "Create New Spell")
-    {
-        spellLevel = "0";
-        lastSpell = "Sacred Flame";
-        setDoc(`playerChar/${window.player}/favorites/spells/${spellLevel}/${lastSpell}`, window.wholeSpells[spellLevel][lastSpell]);
-        ((window.wholeFavorite["spells"] ??= {})[spellLevel] ??= {})[lastSpell] = window.wholeSpells[spellLevel][lastSpell]; //For the form below
-    }
-
-    else if(this.innerHTML == "Create New Ability")
-    {
-        curClass = "Artificer";
-        lastAbility = "Magical Tinkering";
-        setDoc(`playerChar/${window.player}/favorites/actions/${curClass}/${lastAbility}`, window.wholeActions[curClass][lastAbility]);
-        ((window.wholeFavorite["actions"] ??= {})[curClass] ??= {})[lastAbility] = window.wholeActions[curClass][lastAbility]; //For the form below
-    }
-
-    handleEditCard();
+    editFavorite(this.innerHTML == "Create New Spell" ? "spell" : "ability", null, "", "");
 }
 
 /**
- * Shows a favourite spell/ability as an editable form (name, level or tag, casting time...)
- * with a cheat sheet of the {@...} tags, and Upload / Cancel.
+ * Edit on a favourite's card: the editor, filled in with that favourite.
  */
-function handleEditCard()
+function handleEditFavorite()
 {
-    emptyCards();
-
-    let cardDiv = document.createElement("div");
-    cardDiv.setAttribute("class", "card notes");
-    let cardBody = document.createElement("div");
-    cardBody.setAttribute("class", "card-body notes");
-    let cardTitle = document.createElement("h5");
-    cardTitle.setAttribute("class", "card-title");
-    cardBody.appendChild(cardTitle);
-    let text;
-    let temp;
-
-    if(spellLevel)
-    {
-        let spell = lastSpell;
-        text = ["Name:", "Level:", "Casting Time:", "Range:", "Components:", "Duration:", "Concentration:", "Description:"];
-        temp = [`${toTitleCase(window.wholeFavorite["spells"][spellLevel][spell]["name"])}`, `${spellLevel}`, `${toTitleCase(window.wholeFavorite["spells"][spellLevel][spell]["castTime"])}`, `${toTitleCase(window.wholeFavorite["spells"][spellLevel][spell]["range"])}`, `${window.wholeFavorite["spells"][spellLevel][spell]["components"]}`, `${toTitleCase(window.wholeFavorite["spells"][spellLevel][spell]["duration"])}`, `${window.wholeFavorite["spells"][spellLevel][spell]["concentration"]}`, `${window.wholeFavorite["spells"][spellLevel][spell]["description"]}`];
-    }
-
-    else
-    {
-        let action = lastAbility;
-        text = ["Name:", "Tag:", "Description:"];
-        temp = [`${toTitleCase(window.wholeFavorite["actions"][curClass][action]["name"])}`, `${curClass}`, `${window.wholeFavorite["actions"][curClass][action]["description"]}`];
-    }
-
-    for(let i = 0; i < text.length; i++)
-    {
-        editCardSetup(text, temp, cardBody, i);
-    }
-
-    cardTitle.innerHTML = temp[0];
-    let cardText = document.createElement("p");
-    cardText.setAttribute("class", "card-text");
-    cardText.style.margin = "3px";
-    cardText.style.display = "inline";
-    cardText.innerHTML = `<ul class="tagHelp">${rollTagHelp()}</ul>`; //Every roll tag (viMethods.js ROLL_TAGS)
-    cardBody.appendChild(cardText);
-    cardBody.appendChild(document.createElement("br"));
-
-    let btnDiv = document.createElement("div");
-    btnDiv.style.textAlign = "center";
-
-    let uploadBtn = document.createElement("button");
-    uploadBtn.classList.add("gridButton");
-    uploadBtn.classList.add("center");
-    uploadBtn.onclick = uploadEdit;
-    uploadBtn.innerHTML = "Upload";
-
-    let cancelBtn = document.createElement("button");
-    cancelBtn.classList.add("gridButton");
-    cancelBtn.classList.add("center");
-    cancelBtn.onclick = cancelEdit;
-    cancelBtn.innerHTML = "Cancel";
-    cancelBtn.style.marginLeft = "5px";
-    
-    let noteDisplay = document.getElementById("cards");
-    noteDisplay.appendChild(cardDiv);
-    cardDiv.appendChild(cardBody);
-    btnDiv.appendChild(uploadBtn);
-    btnDiv.appendChild(cancelBtn);
-    cardDiv.appendChild(btnDiv);
+    if(spellLevel){editFavorite("spell", window.wholeFavorite?.["spells"]?.[spellLevel]?.[lastSpell], spellLevel, lastSpell);}
+    else{editFavorite("ability", window.wholeFavorite?.["actions"]?.[curClass]?.[lastAbility], curClass, lastAbility);}
 }
 
 /**
- * Adds one labelled field to the edit form (Description gets a big text area).
+ * Opens spellEditor.js for one of the player's favourites. Saving writes it to their favourites
+ * (a new level / tag or name moves it, and the folders it's in follow). Ticking the share box also
+ * puts it in the spell / ability list for everyone (both sites for spells), replacing a copy with
+ * the same name.
  */
-function editCardSetup(text, temp, cardBody, i)
+function editFavorite(kind, entry, oldGroup, oldName)
 {
-    let cardText = document.createElement("p");
-    cardText.setAttribute("class", "card-text");
-    cardText.style.margin = "3px";
-    cardText.style.display = "inline";
-    cardText.innerHTML = text[i];
-    let cardInput = document.createElement("input");
-    if(text[i] == "Description:"){cardInput = document.createElement("textarea"); cardInput.rows = "8"; cardInput.style.width = "80%";}
-    cardInput.setAttribute("class", "card-text");
-    cardInput.classList.add("spellDisc");
-    cardInput.style.margin = "3px";
-    cardInput.style.display = "inline";
-    cardInput.value = temp[i];
-    cardInput.id = text[i].replace(" ", "");
-    cardBody.appendChild(cardText);
-    cardBody.appendChild(cardInput);
-    cardBody.appendChild(document.createElement("br"));
-}
+    let isSpell = kind == "spell";
+    let base = isSpell ? "spells" : "actions";
+    let tags = [...new Set([...Object.keys(window.wholeActions ?? {}), ...Object.keys(window.wholeFavorite?.["actions"] ?? {})])].filter((t) => t != "hold");
 
-/**
- * Cancel on the edit form. If it was a brand-new entry (still the starter), delete it.
- * Then go back to the ★ tab.
- */
-function cancelEdit()
-{
-    if(spellLevel)
-    {
-        if(lastSpell == "Sacred Flame")
+    openSpellEditor({kind, entry, group: oldGroup, tags, help: rollTagHelp(),
+        checks: [{id: "seShare", label: isSpell ? "Also add it to the spell list for everyone (both sites)" : "Also add it to the ability list for everyone", checked: false}],
+        onSave: async (values, ticked) =>
         {
-            deleteDoc(`playerChar/${window.player}/favorites/spells/${spellLevel}/${lastSpell}`);
-        }
-    }
+            let group = values.level;
 
-    else
-    {
-        if(lastAbility == "Magical Tinkering")
-        {
-            deleteDoc(`playerChar/${window.player}/favorites/actions/${curClass}/${lastAbility}`);
-        }   
-    }
+            if(oldName && (oldGroup != group || oldName != values.name)) //Moved or renamed: the old one goes
+            {
+                deleteDoc(`playerChar/${window.player}/favorites/${base}/${oldGroup}/${oldName}`);
+                moveFolderRefs(base, oldGroup, oldName, group, values.name); //Folders follow it
+            }
 
-    emptyCards();
-    firstMenu[2].click();
-}
+            await setDoc(`playerChar/${window.player}/favorites/${base}/${group}/${values.name}`, values);
+            oldGroup = group; //Saving again edits this one
+            oldName = values.name;
+            emptyCards(); //The old card may be out of date
+            let note = `Saved ${values.name} to your favourites.`;
 
-/**
- * Saves the edited favourite under its (possibly new) level/tag and name, replacing the old one.
- */
-function uploadEdit()
-{
-    let spellDisc = document.getElementsByClassName("spellDisc");
+            if(ticked["seShare"])
+            {
+                if(isSpell)
+                {
+                    let data = await shareSpell(values);
+                    removeNamed(window.wholeSpells, data.spell.name);
+                    ((window.wholeSpells ??= {})[data.level] ??= {})[data.spell.name] = data.spell;
+                }
 
-    if(spellLevel)
-    {
-        deleteDoc(`playerChar/${window.player}/favorites/spells/${spellLevel}/${lastSpell}`);
-        moveFolderRefs("spells", spellLevel, lastSpell, spellDisc[1].value.trim(), spellDisc[0].value.trim()); //Folders follow it
+                else
+                {
+                    let data = await shareAbility(values);
+                    removeNamed(window.wholeActions, data.ability.name);
+                    ((window.wholeActions ??= {})[data.tag] ??= {})[data.ability.name] = data.ability;
+                }
 
-        setDoc(`playerChar/${window.player}/favorites/spells/${spellDisc[1].value.trim()}/${spellDisc[0].value.trim()}`,
-        {
-            castTime : spellDisc[2].value.trim(),
-            components : spellDisc[4].value.trim(),
-            concentration : spellDisc[6].value.trim(),
-            description : spellDisc[7].value.trim(),
-            duration : spellDisc[5].value.trim(),
-            level : spellDisc[1].value.trim(),
-            name : spellDisc[0].value.trim(),
-            range : spellDisc[3].value.trim()
-        });
-    }
+                note += " It's in the list for everyone too.";
+            }
 
-    else
-    {
-        deleteDoc(`playerChar/${window.player}/favorites/actions/${curClass}/${lastAbility}`);
-        moveFolderRefs("actions", curClass, lastAbility, spellDisc[1].value.trim(), spellDisc[0].value.trim()); //Folders follow it
-
-        setDoc(`playerChar/${window.player}/favorites/actions/${spellDisc[1].value.trim()}/${spellDisc[0].value.trim()}`,
-        {
-            description : spellDisc[2].value.trim(),
-            level : spellDisc[1].value.trim(),
-            name : spellDisc[0].value.trim(),
-        });
-    }
-
-    emptyCards();
+            return note;
+        }});
 }
 
 /**

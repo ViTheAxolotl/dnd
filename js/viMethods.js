@@ -813,17 +813,31 @@ export function showPopup({title = "", message = "", html = "", boxClass = "", i
  * ------------------------------------------------------------------------------------ */
 export const SPELL_SERVICE = "https://statblock.vitheaxolotl.workers.dev";
 
-/** Adds spells ({level: {Name: spell}}) that aren't in `target` yet (any capitalisation). */
+/**
+ * Adds the shared list's spells ({level: {Name: spell}}) to `target`. A spell edited in the
+ * editor replaces the built-in copy with the same name (any level, any capitalisation).
+ */
 export function mergeSpells(target, extra)
 {
     for(let [level, list] of Object.entries(extra ?? {}))
     {
         for(let [name, spell] of Object.entries(list ?? {}))
         {
-            if(!findSpellIn(target, name)){(target[level] ??= {})[name] = spell;}
+            removeNamed(target, name);
+            (target[level] ??= {})[name] = spell;
         }
     }
     return target;
+}
+
+/** Removes every entry called `name` (any group, any capitalisation) from {group: {Name: entry}}. */
+export function removeNamed(target, name)
+{
+    let lower = String(name).toLowerCase();
+    for(let list of Object.values(target ?? {}))
+    {
+        for(let key of Object.keys(list ?? {})){if(key != "hold" && key.toLowerCase() == lower){delete list[key];}}
+    }
 }
 
 /** The spell with this name in a spell list (any level, any capitalisation): {level, key, spell} or null. */
@@ -867,14 +881,15 @@ export async function findSpell(name, spells = window.top.parent.wholeSpells)
     }
 }
 
-/** Adds abilities ({tag: {Name: ability}}) that aren't in `target` yet. */
+/** Adds the shared list's abilities ({tag: {Name: ability}}); an edited one replaces the built-in copy. */
 export function mergeAbilities(target, extra)
 {
     for(let [tag, list] of Object.entries(extra ?? {}))
     {
         for(let [name, ability] of Object.entries(list ?? {}))
         {
-            if(!findAbilityIn(target, name)){(target[tag] ??= {})[name] = ability;}
+            removeNamed(target, name);
+            (target[tag] ??= {})[name] = ability;
         }
     }
     return target;
@@ -922,11 +937,15 @@ export async function findAbility(name, cls, actions = window.top.parent.wholeAc
     }
 }
 
-/** The spell card popup (the eye icons): the spell's details on parchment. */
-export function showSpellCard(spell)
+/**
+ * The spell card popup (the eye icons): the spell's details on parchment, with Edit next to
+ * Done when `onEdit` is given (it's called after the card closes).
+ */
+export async function showSpellCard(spell, {onEdit} = {})
 {
     let line = (label, value) => `<p class="card-text">${label}: ${value ?? ""}</p>`;
-    return showPopup({boxClass: "popupSpell", html:
+    let buttons = onEdit ? [{label: "Edit", value: "edit"}, {label: "Done", value: true, primary: true}] : undefined;
+    let choice = await showPopup({boxClass: "popupSpell", buttons, html:
         `<div class="card-body notes">
             <h5 class="card-title">${spell["name"]}</h5>
             ${line("Cast Time", spell["castTime"])}
@@ -936,13 +955,20 @@ export function showSpellCard(spell)
             ${spell["concentration"] == "true" ? `<p class="card-text">Concentration</p>` : ""}
             <p class="card-text">${spell["description"]}</p>
         </div>`});
+    if(choice == "edit"){onEdit();}
 }
 
-/** A spell neither list has: open it on Roll20 in a tall box. */
-export function showSpellOnRoll20(name)
+/**
+ * A spell that's in neither list (nor on Open5e): offer to create it, or look it up on Roll20
+ * in a new tab (Roll20 won't open inside the site).
+ */
+export async function showSpellMissing(name, {onCreate} = {})
 {
-    let link = `https://roll20.net/compendium/dnd5e/${encodeURIComponent(name)}`;
-    return showPopup({boxClass: "popupTall", title: name, html: `<iframe class="popupFrame" src="${link}" title="${name}"></iframe>`});
+    let buttons = [{label: "Open on Roll20", value: "roll20"}, {label: "Done", value: true, primary: !onCreate}];
+    if(onCreate){buttons.unshift({label: "Create it", value: "create", primary: true});}
+    let choice = await showPopup({title: name, message: `${name} isn't in the spell list${onCreate ? " yet. Create it to add it for everyone" : ""}.`, buttons});
+    if(choice == "create"){onCreate();}
+    else if(choice == "roll20"){window.open(`https://roll20.net/compendium/dnd5e/${encodeURIComponent(name)}`, "_blank", "noopener");}
 }
 
 /* ------------------------------------------------------------------------------------ *

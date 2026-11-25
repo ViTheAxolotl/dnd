@@ -16,7 +16,8 @@
  */
 
 "use strict";
-import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendDiscordMessage, showPopup, findSpell, showSpellCard, showSpellOnRoll20 } from './viMethods.js';
+import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendDiscordMessage, showPopup, findSpell, showSpellCard, showSpellMissing, removeNamed } from './viMethods.js';
+import { openSpellEditor, shareSpell } from './spellEditor.js';
 
 let stats;
 let firstRun = true;
@@ -193,8 +194,8 @@ async function showSpellByName(name)
 {
     let clean = String(name).replace(/\s*\(.*?\)/g, "").trim();
     let found = await findSpell(clean, parent.wholeSpells);
-    if(found){showSpellCard(found.spell);}
-    else{showSpellOnRoll20(toTitleCase(clean));}
+    if(found){showSpellCard(found.spell, {onEdit: () => editSharedSpell(found.spell, found.level, null)});}
+    else{showSpellMissing(toTitleCase(clean), {onCreate: () => editSharedSpell({name: toTitleCase(clean)}, "", null)});}
 }
 
 /**
@@ -695,9 +696,36 @@ async function showSpell()
     let spellName = document.getElementById(this.id.slice(0, this.id.length - 4)).value.trim();
     if(spellName == ""){return;}
 
+    let slot = document.getElementById(this.id.slice(0, this.id.length - 4));
+    let slotLevel = this.id.startsWith("can") ? "0" : this.id.slice(3, 4);
     let found = await findSpell(spellName, parent.wholeSpells);
-    if(found){showSpellCard(found.spell);}
-    else{showSpellOnRoll20(toTitleCase(spellName));}
+    if(found){showSpellCard(found.spell, {onEdit: () => editSharedSpell(found.spell, found.level, slot)});}
+    else{showSpellMissing(toTitleCase(spellName), {onCreate: () => editSharedSpell({name: toTitleCase(spellName)}, slotLevel, slot)});}
+}
+
+/**
+ * The spell editor for the shared spell list (both sites): Edit on a spell card, or Create it
+ * for one that's missing. Saving replaces the spell for everyone. If it was opened from a
+ * spell box on this sheet and the name changed, the box follows.
+ */
+function editSharedSpell(spell, level, slot)
+{
+    let isNew = !spell?.description;
+    openSpellEditor({kind: "spell", entry: isNew ? {name: spell?.name ?? ""} : spell, group: level,
+        title: isNew ? `New spell: ${spell?.name ?? ""}` : `Edit ${spell.name}`,
+        onSave: async (values) =>
+        {
+            let data = await shareSpell(values);
+            removeNamed(parent.wholeSpells, values.name);
+            ((parent.wholeSpells ??= {})[data.level] ??= {})[data.spell.name] = data.spell;
+
+            if(slot && slot.value.trim().toLowerCase() != data.spell.name.toLowerCase())
+            {
+                slot.value = data.spell.name;
+                updateStat.call(slot);
+            }
+            return `Saved ${data.spell.name}. Everyone on both sites now has this version.`;
+        }});
 }
 
 /* ------------------------------------------------------------------------------------ *
