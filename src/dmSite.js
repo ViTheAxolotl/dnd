@@ -25,6 +25,7 @@ import { ref, onValue, get } from 'https://www.gstatic.com/firebasejs/9.15.0/fir
 import { initializeApp, getApps } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-app.js';
 import { getAuth, createUserWithEmailAndPassword, signOut } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
 import { toTitleCase, auth, database, setDoc, deleteDoc, returnHpImage, placeBefore, createLabel, wait, storage, tokenCategory, tokenCategoryList, makeCategoryFilter, UNCATEGORIZED, CHARACTER_CATEGORY, ALL_CATEGORIES, dbRef, login, DM_LOGIN, campaign, firebaseConfig, blankCharacter, sampleStats } from '../js/viMethods.js';
+import { parseStatBlock, statBlockToPreset, allyTokenKey, favoritesFromStatBlock, open5eToParsed, blockIdFromLink } from './statBlock.js';
 import { uploadBytes, getDownloadURL, deleteObject, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
 
@@ -139,6 +140,11 @@ function init()
             case "campaigns":
                 fiveButtons.push(button);
                 button.onclick = handleCampaigns;
+                break;
+
+            case "paste":
+                fiveButtons.push(button);
+                button.onclick = handlePasteStatBlock;
                 break;
         }
     }
@@ -1939,6 +1945,344 @@ function handleCampaigns()
     drawCampaigns();
 }
 
+/** The stat block relay (statblock-worker.js on Cloudflare Workers): loads WorldAnvil blocks by link. Put your Worker's address here. */
+const STATBLOCK_RELAY = "https://statblock.vitheaxolotl.workers.dev";
+const OPEN5E = "https://api.open5e.com/v2/creatures/";
+
+/**
+ * "Paste Stat Block": paste a monster's stat block (from WorldAnvil etc.), sort it, check the
+ * preview, then save it. Saving makes a Preset Token (generic ally picture, the monster's name,
+ * HP and AC, with the whole stat block stored on it so the Sheet tab shows it when you control
+ * the token) and a favourites folder named after the monster with its spells and abilities.
+ */
+function handlePasteStatBlock()
+{
+    hideButtons();
+    let parsed = null;
+
+    let screen = document.createElement("div");
+    screen.id = "statPasteScreen";
+
+    // --- Load a WorldAnvil block by link (through the relay) ---
+    let linkSection = campaignSection("Load from a WorldAnvil link");
+    let linkLine = document.createElement("div");
+    linkLine.classList = "campaignLine";
+    let linkInput = document.createElement("input");
+    linkInput.placeholder = "https://www.worldanvil.com/block/1191121";
+    linkInput.id = "statLinkInput";
+    let linkBtn = makeRowButton("Load");
+    linkLine.appendChild(linkInput);
+    linkLine.appendChild(linkBtn);
+    linkSection.appendChild(linkLine);
+    let linkStatus = campaignStatus(linkSection);
+    screen.appendChild(linkSection);
+
+    // --- Search Open5e (the standard 5e monsters) ---
+    let searchSection = campaignSection("Search Open5e (standard 5e monsters)");
+    let searchLine = document.createElement("div");
+    searchLine.classList = "campaignLine";
+    let searchInput = document.createElement("input");
+    searchInput.placeholder = "e.g. owlbear";
+    searchInput.id = "statSearchInput";
+    let searchBtn = makeRowButton("Search");
+    searchLine.appendChild(searchInput);
+    searchLine.appendChild(searchBtn);
+    searchSection.appendChild(searchLine);
+    let results = document.createElement("div");
+    results.id = "statSearchResults";
+    searchSection.appendChild(results);
+    let searchStatus = campaignStatus(searchSection);
+    screen.appendChild(searchSection);
+
+    let section = campaignSection("Or paste a stat block");
+    let box = document.createElement("textarea");
+    box.id = "statPasteBox";
+    box.placeholder = "Paste the whole stat block here, starting from the name…";
+    section.appendChild(box);
+
+    let line = document.createElement("div");
+    line.classList = "campaignLine";
+    let sortBtn = makeRowButton("Sort it");
+    let saveBtn = makeRowButton("Save");
+    let backBtn = makeRowButton("Back", () => {window.location.reload();});
+    saveBtn.disabled = true;
+    line.appendChild(sortBtn);
+    line.appendChild(saveBtn);
+    line.appendChild(backBtn);
+    section.appendChild(line);
+    let status = campaignStatus(section);
+    screen.appendChild(section);
+
+    let preview = document.createElement("div");
+    preview.id = "statPastePreview";
+    preview.classList = "bg-stone objectBorder";
+    preview.style.display = "none";
+    screen.appendChild(preview);
+    div.appendChild(screen);
+
+    box.oninput = () => {saveBtn.disabled = true;}; //Changed text needs sorting again
+
+    sortBtn.onclick = () =>
+    {
+        parsed = parseStatBlock(box.value);
+        saveBtn.disabled = true;
+
+        if(!parsed.name || (!parsed.hp && !parsed.ac))
+        {
+            preview.style.display = "none";
+            status("Couldn't find a name, HP or AC. Paste the whole stat block, starting from the name.", true);
+            return;
+        }
+
+        drawStatPreview(preview, parsed);
+        saveBtn.disabled = false;
+        status("Sorted. Check the details below, then save.");
+    };
+
+    saveBtn.onclick = async () =>
+    {
+        if(!parsed){return;}
+        saveBtn.disabled = true;
+        status("Saving…");
+
+        try
+        {
+            let token = statBlockToPreset(parsed, allyTokenKey(window.top.parent.imgs?.["tokens"]));
+            let list = window.top.parent.wholePre ?? {};
+            let base = camelKey(parsed.name, "monster");
+            let id = base;
+            for(let n = 1; list[id] != undefined; n++){id = `${base}${n}`;}
+
+            token.id = id;
+            await setDoc(`preset/${id}`, token);
+            let folder = await saveMonsterFolder(parsed);
+
+            let notes = [`Saved <b>${parsed.name}</b> to Preset Tokens (HP ${token.maxHp}, AC ${token.AC}).`];
+            notes.push(`Folder <b>${parsed.name}</b> ${folder.created ? "created" : "updated"}: ${folder.spells} spell${folder.spells == 1 ? "" : "s"}, ${folder.abilities} abilit${folder.abilities == 1 ? "y" : "ies"}.`);
+            if(folder.missing.length > 0){notes.push(`Not in the spell list, so left out: ${folder.missing.join(", ")}.`);}
+            status(notes.join(" "));
+        }
+
+        catch(error)
+        {
+            console.error(error);
+            status(`Couldn't save: ${error.message}`, true);
+            saveBtn.disabled = false;
+        }
+    };
+
+    //Shows a sorted monster (from any of the three ways in) and lets it be saved
+    let show = (monster, note) =>
+    {
+        parsed = monster;
+        drawStatPreview(preview, parsed);
+        saveBtn.disabled = false;
+        status(note);
+        preview.scrollIntoView({behavior: "smooth", block: "start"});
+    };
+
+    let loadLink = async () =>
+    {
+        let id = blockIdFromLink(linkInput.value);
+        if(!id){linkStatus("That doesn't look like a WorldAnvil block link (…/block/1234567).", true); return;}
+        if(STATBLOCK_RELAY.includes("YOUR-NAME")){linkStatus("Set STATBLOCK_RELAY (just above the Paste Stat Block code in src/dmSite.js) to your Worker's address first.", true); return;}
+
+        linkBtn.disabled = true;
+        linkStatus("Loading…");
+
+        try
+        {
+            let response = await fetch(`${STATBLOCK_RELAY}?id=${id}`);
+            let data = await response.json().catch(() => ({}));
+            if(!response.ok || !data.text){throw new Error(data.error ?? `The relay answered ${response.status}.`);}
+
+            box.value = data.text;
+            let monster = parseStatBlock(data.text);
+            if(!monster.name || (!monster.hp && !monster.ac)){linkStatus("Loaded, but couldn't sort it. The text is in the paste box below: check it and click Sort it.", true); return;}
+            linkStatus(`Loaded block ${id}.`);
+            show(monster, "Sorted. Check the details below, then save.");
+        }
+
+        catch(error)
+        {
+            console.error(error);
+            linkStatus(`Couldn't load it: ${error.message}`, true);
+        }
+
+        finally{linkBtn.disabled = false;}
+    };
+
+    let search = async () =>
+    {
+        let term = searchInput.value.trim();
+        results.innerHTML = "";
+        if(term.length < 2){searchStatus("Type at least 2 letters.", true); return;}
+
+        searchBtn.disabled = true;
+        searchStatus("Searching…");
+
+        try
+        {
+            let response = await fetch(`${OPEN5E}?name__icontains=${encodeURIComponent(term)}&limit=25&fields=key,name,challenge_rating,document`);
+            if(!response.ok){throw new Error(`Open5e answered ${response.status}.`);}
+            let list = (await response.json())?.results ?? [];
+            searchStatus(list.length == 0 ? "Nothing found." : `${list.length} found${list.length == 25 ? " (first 25: add more letters to narrow it)" : ""}. Click one to load it.`);
+
+            for(let c of list)
+            {
+                let cr = c.challenge_rating;
+                let crLabel = cr == 0.125 ? "1/8" : cr == 0.25 ? "1/4" : cr == 0.5 ? "1/2" : cr;
+                let source = c.document?.display_name ?? c.document?.name ?? "";
+                let button = makeRowButton("", () => loadCreature(c.key, button));
+                button.textContent = `${c.name} · CR ${crLabel ?? "?"}${source ? ` · ${source}` : ""}`;
+                button.classList.add("statResult");
+                results.appendChild(button);
+            }
+        }
+
+        catch(error)
+        {
+            console.error(error);
+            searchStatus(`Couldn't search Open5e: ${error.message}`, true);
+        }
+
+        finally{searchBtn.disabled = false;}
+    };
+
+    let loadCreature = async (key, button) =>
+    {
+        button.disabled = true;
+        searchStatus("Loading…");
+
+        try
+        {
+            let response = await fetch(`${OPEN5E}${encodeURIComponent(key)}/`);
+            if(!response.ok){throw new Error(`Open5e answered ${response.status}.`);}
+            let monster = open5eToParsed(await response.json());
+            box.value = "";
+            searchStatus(`Loaded ${monster.name}${monster.source ? ` from ${monster.source}` : ""}.`);
+            show(monster, "Loaded from Open5e. Check the details below, then save.");
+        }
+
+        catch(error)
+        {
+            console.error(error);
+            searchStatus(`Couldn't load it: ${error.message}`, true);
+        }
+
+        finally{button.disabled = false;}
+    };
+
+    linkBtn.onclick = loadLink;
+    linkInput.onkeydown = (e) => {if(e.key == "Enter"){loadLink();}};
+    searchBtn.onclick = search;
+    searchInput.onkeydown = (e) => {if(e.key == "Enter"){search();}};
+}
+
+/** "Arcane Guardian" -> "arcaneGuardian" (fallback if the name has no letters or numbers). */
+function camelKey(text, fallback)
+{
+    let words = String(text).replace(/[^A-Za-z0-9 ]/g, " ").trim().split(/\s+/).filter(Boolean);
+    return words.map((w, k) => k == 0 ? w.toLowerCase() : w[0].toUpperCase() + w.slice(1).toLowerCase()).join("") || fallback;
+}
+
+/**
+ * Puts the monster's spells and abilities in the DM's favourites folder named after it,
+ * making the folder if there isn't one. Spells are copied from the site's spell list;
+ * abilities are filed under the monster's name. New favourites are kept out of the DM's
+ * main folder, so they only show in the monster's folder.
+ * Returns {created, spells, abilities, missing}.
+ */
+async function saveMonsterFolder(parsed)
+{
+    let base = `playerChar/${DM_LOGIN}/favorites`;
+    let favorites = window.top.parent.wholeChar?.[DM_LOGIN]?.["favorites"] ?? {};
+    let folders = favorites["folders"] ?? {};
+    let id = Object.keys(folders).find((key) => String(folders[key]?.["name"] ?? "").trim().toLowerCase() == parsed.name.trim().toLowerCase());
+    let created = id === undefined;
+
+    if(created)
+    {
+        let key = camelKey(parsed.name, "folder");
+        id = key;
+        for(let n = 2; folders[id]; n++){id = key + n;}
+    }
+
+    let wanted = favoritesFromStatBlock(parsed, window.top.parent.wholeSpells);
+    let saves = [setDoc(`${base}/folders/${id}/name`, parsed.name)];
+
+    for(let s of wanted.spells)
+    {
+        if(!favorites["spells"]?.[s.level]?.[s.name])
+        {
+            saves.push(setDoc(`${base}/spells/${s.level}/${s.name}`, s.spell));
+            saves.push(setDoc(`${base}/notInMain/spells/${s.level}/${s.name}`, true));
+        }
+        saves.push(setDoc(`${base}/folders/${id}/spells/${s.level}/${s.name}`, true));
+    }
+
+    for(let a of wanted.abilities)
+    {
+        if(!favorites["actions"]?.[a.tag]?.[a.name])
+        {
+            saves.push(setDoc(`${base}/actions/${a.tag}/${a.name}`, {description: a.description, level: a.tag, name: a.name}));
+            saves.push(setDoc(`${base}/notInMain/actions/${a.tag}/${a.name}`, true));
+        }
+        saves.push(setDoc(`${base}/folders/${id}/actions/${a.tag}/${a.name}`, true));
+    }
+
+    await Promise.all(saves);
+    return {created, spells: wanted.spells.length, abilities: wanted.abilities.length, missing: wanted.missing};
+}
+
+/**
+ * Fills the preview panel with what the parser found. Text only: nothing pasted is run as HTML.
+ */
+function drawStatPreview(panel, p)
+{
+    panel.innerHTML = "";
+    panel.style.display = "block";
+    let add = (label, value) =>
+    {
+        if(value === undefined || value === "" || (Array.isArray(value) && value.length == 0)){return;}
+        let row = document.createElement("p");
+        row.classList = "statRow";
+        let b = document.createElement("b");
+        b.textContent = label + ": ";
+        row.appendChild(b);
+        row.appendChild(document.createTextNode(value));
+        panel.appendChild(row);
+    };
+
+    let title = document.createElement("h4");
+    title.textContent = `${p.name}${p.cr ? ` (CR ${p.cr})` : ""}`;
+    panel.appendChild(title);
+
+    add("Type", [p.size, p.type, p.alignment].filter(Boolean).join(", "));
+    add("AC", p.ac);
+    add("HP", p.hp ? `${p.hp}${p.hitDice ? ` (${p.hitDice})` : ""}` : "");
+    add("Speed", p.speed);
+    add("Abilities", Object.entries(p.abilities).map(([k, v]) => `${k.slice(0, 3).toUpperCase()} ${v.score} (${v.mod})`).join("  "));
+    add("Saving Throws", p.savingThrows);
+    add("Skills", p.skills);
+    add("Damage Vulnerabilities", p.damageVulnerabilities);
+    add("Damage Resistances", p.damageResistances);
+    add("Damage Immunities", p.damageImmunities);
+    add("Condition Immunities", p.conditionImmunities);
+    add("Senses", p.senses);
+    add("Languages", p.languages);
+    for(let s of p.spellcasting){add(`Spells, ${s.frequency}`, s.spells.join(", "));}
+    for(let t of p.traits){add(t.name, t.description);}
+    for(let [label, list] of [["Action", p.actions], ["Bonus Action", p.bonusActions], ["Reaction", p.reactions], ["Legendary Action", p.legendaryActions], ["Lair Action", p.lairActions]])
+    {
+        for(let a of list ?? []){add(`${label} - ${a.name}`, a.description);}
+    }
+    add("Source", p.source);
+    add("Lore", p.description);
+    add("Environments", p.environments?.join(", "));
+    add("Couldn't place", p.unsorted?.join(" | "));
+}
+
 /**
  * A titled section for the Campaigns screen.
  */
@@ -2623,6 +2967,10 @@ function addToken()
     let ac = document.getElementById("ac").value;
     if(ac.trim() == "" || ac == "undefined"){ac = "10";}
     let id = n.slice(0, n.indexOf("-"));
+
+    //Editing a token already on the map: save over that token, not one named after its picture
+    //(goblin1 and an Arcane Guardian with the generic ally picture have ids unlike their pictures)
+    if(mode != "add" && mode != "preset" && curCharacter?.id && window.top.parent.wholeDB?.[curCharacter.id]){id = curCharacter.id;}
     
     if(Object.keys(window.top.parent.wholeDB).includes(id) && mode == "add")
     {
@@ -2664,8 +3012,15 @@ function addToken()
         }
     }
  
+    //The edit form has no stat block fields: keep the one already on this token (from Paste Stat Block)
+    let existing = table.startsWith("preset/") ? window.top.parent.wholePre?.[id]
+        : table.startsWith("playerChar/Vi/summons/") ? window.top.parent.wholeSummons?.[id]
+        : window.top.parent.wholeDB?.[id];
+    let keep = existing?.statBlock ? {statBlock : existing.statBlock} : {};
+
     setDoc(table,
     {
+        ...keep,
         border : b,
         currentHp : c,
         maxHp : mH,

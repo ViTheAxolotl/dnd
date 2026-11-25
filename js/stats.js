@@ -20,10 +20,208 @@ import { toTitleCase, setDoc, statFormat, skillDecrypt, reload, deleteDoc, sendD
 
 let stats;
 let firstRun = true;
+let characterSheetStarted = false; //The character sheet is only set up once (the monster sheet can switch to it)
 // The dashboard page (index.html). All character data comes from parent.wholeChar.
 let parent = window.top.parent;
 
-init();
+startSheet();
+
+/**
+ * Picks which sheet to show. While you control a token that carries a stat block (made by the
+ * DM Site's Paste Stat Block), the sheet shows that monster instead of your character, with a
+ * button to switch back. Otherwise it's the normal character sheet.
+ * The map's tokens can arrive a moment after the characters, so it waits briefly for them.
+ */
+function startSheet(tries = 0)
+{
+    let me = parent.wholeChar?.[parent.player];
+    let tokenId = me?.["currentToken"];
+    let mapReady = Object.keys(parent.wholeDB ?? {}).length > 0;
+
+    if(me && tokenId && tokenId != parent.player && !mapReady && tries < 10)
+    {
+        setTimeout(() => startSheet(tries + 1), 300);
+        return;
+    }
+
+    let token = tokenId && tokenId != parent.player ? parent.wholeDB?.[tokenId] : null;
+
+    if(token?.["statBlock"])
+    {
+        showMonsterSheet(token);
+        return;
+    }
+
+    characterSheetStarted = true;
+    init();
+}
+
+/**
+ * Fills #monsterSheet from the token's stat block and hides the character sheet. Read-only:
+ * nothing here is saved, so your own character's sheet is never touched. Every heading is
+ * shown; a field the stat block didn't have is left blank. Spell names open their card.
+ */
+function showMonsterSheet(token)
+{
+    let m = token["statBlock"];
+    let sheet = document.getElementById("monsterSheet");
+    document.getElementById("story").style.display = "none";
+    sheet.innerHTML = "";
+    sheet.style.display = "block";
+
+    let el = (tag, cls, text) => {let e = document.createElement(tag); if(cls){e.className = cls;} if(text !== undefined && text !== null){e.textContent = text;} return e;};
+    let value = (v) => (v === undefined || v === null) ? "" : String(v);
+
+    //A labelled box: <p>Label:</p><h6>value</h6>
+    let field = (label, v) =>
+    {
+        let cell = el("td");
+        cell.appendChild(el("p", "", `${label}:`));
+        cell.appendChild(el("h6", "monsterValue", value(v)));
+        return cell;
+    };
+
+    let paper = () => {let t = el("table", "paper statSheet monsterPaper"); t.style.width = "100%"; sheet.appendChild(t); return t;};
+    let row = (table, cells) => {let r = el("tr"); cells.forEach((c) => r.appendChild(c)); table.appendChild(r); return r;};
+
+    //Top bar: whose sheet this is, and the way back to your own
+    let bar = el("div", "monsterBar");
+    bar.appendChild(el("span", "", `Controlling ${value(token["title"]).split(":")[0] || value(m["name"])}`));
+    let back = el("button", "gridButton", "Show my sheet");
+    back.onclick = () => {sheet.style.display = "none"; document.getElementById("story").style.display = ""; if(!characterSheetStarted){characterSheetStarted = true; init();}};
+    bar.appendChild(back);
+    sheet.appendChild(bar);
+
+    // --- Who it is ---
+    let head = paper();
+    row(head, [
+        field("Name", m["name"]),
+        field("Size, Type & Alignment", [m["size"], m["type"]].filter(Boolean).join(" ") + (m["alignment"] ? `, ${m["alignment"]}` : "")),
+        field("Challenge Rating", m["cr"])
+    ]);
+
+    // --- Fighting numbers (HP is the token's live HP) ---
+    let hp = `${value(token["currentHp"])} / ${value(token["maxHp"] ?? m["hp"])}`;
+    if(token["tempHp"] && token["tempHp"] != "0"){hp += ` (+${token["tempHp"]} temp)`;}
+    let combat = paper();
+    row(combat, [
+        field("Armor Class", value(token["AC"] ?? m["ac"]) + (m["acNote"] ? ` (${m["acNote"]})` : "")),
+        field("Hit Points", hp),
+        field("Hit Dice", m["hitDice"]),
+        field("Speed", m["speed"]),
+        field("Proficiency", m["proficiency"])
+    ]);
+
+    // --- Ability scores ---
+    let scores = paper();
+    let names = ["Strength", "Dexterity", "Constitution", "Intelligence", "Wisdom", "Charisma"];
+    row(scores, names.map((name) =>
+    {
+        let a = m["abilities"]?.[name];
+        let cell = el("td");
+        cell.appendChild(el("p", "", `${name.slice(0, 3)}:`));
+        cell.appendChild(el("h6", "monsterValue", a ? String(a["score"]) : ""));
+        let mod = el("h6", "monsterMod", a ? a["mod"] : "");
+        mod.style.border = "2px solid";
+        cell.appendChild(mod);
+        return cell;
+    }));
+
+    // --- Defences and senses ---
+    let details = paper();
+    let pairs = [["Saving Throws", "savingThrows"], ["Skills", "skills"], ["Damage Vulnerabilities", "damageVulnerabilities"],
+        ["Damage Resistances", "damageResistances"], ["Damage Immunities", "damageImmunities"], ["Condition Immunities", "conditionImmunities"],
+        ["Senses", "senses"], ["Languages", "languages"]];
+    for(let k = 0; k < pairs.length; k += 2)
+    {
+        row(details, pairs.slice(k, k + 2).map(([label, key]) => field(label, m[key])));
+    }
+
+    // --- Lists: spellcasting, traits, actions... ---
+    let list = (title, fill) =>
+    {
+        let t = paper();
+        let cell = el("td", "monsterList");
+        cell.appendChild(el("h6", "", title));
+        let before = cell.childNodes.length;
+        fill(cell);
+        if(cell.childNodes.length == before){cell.appendChild(el("p", "monsterEmpty", ""));}
+        row(t, [cell]);
+    };
+
+    let entry = (cell, name, text) =>
+    {
+        let p = el("p", "monsterEntry");
+        p.appendChild(el("b", "", `${name}. `));
+        p.appendChild(document.createTextNode(value(text)));
+        cell.appendChild(p);
+    };
+
+    list("Spellcasting", (cell) =>
+    {
+        for(let line of m["spellcasting"] ?? [])
+        {
+            let p = el("p", "monsterEntry");
+            p.appendChild(el("b", "", `${line["frequency"]}: `));
+            (line["spells"] ?? []).forEach((name, k) =>
+            {
+                if(k > 0){p.appendChild(document.createTextNode(", "));}
+                let link = el("span", "monsterSpell", name);
+                link.title = "Show this spell";
+                link.onclick = () => showSpellByName(name);
+                p.appendChild(link);
+            });
+            cell.appendChild(p);
+        }
+    });
+
+    list("Traits", (cell) => {for(let t of m["traits"] ?? []){entry(cell, t["name"], t["description"]);}});
+    list("Actions", (cell) => {for(let a of m["actions"] ?? []){entry(cell, a["name"], a["description"]);}});
+    list("Bonus Actions", (cell) => {for(let a of m["bonusActions"] ?? []){entry(cell, a["name"], a["description"]);}});
+    list("Reactions", (cell) => {for(let a of m["reactions"] ?? []){entry(cell, a["name"], a["description"]);}});
+    list("Legendary Actions", (cell) => {for(let a of m["legendaryActions"] ?? []){entry(cell, a["name"], a["description"]);}});
+    if(m["lairActions"]){list("Lair Actions", (cell) => {for(let a of m["lairActions"]){entry(cell, a["name"], a["description"]);}});}
+
+    list("Lore", (cell) => {for(let para of value(m["description"]).split("\n").filter(Boolean)){cell.appendChild(el("p", "monsterEntry", para));}});
+    list("Environments", (cell) => {if(m["environments"]){cell.appendChild(el("p", "monsterEntry", m["environments"].join(", ")));}});
+}
+
+/**
+ * Opens a spell's card by name (any level), the same way the eye icons do.
+ */
+function showSpellByName(name)
+{
+    let target = String(name).toLowerCase().replace(/\s*\(.*?\)/g, "").trim();
+    let spell = null;
+
+    for(let level of Object.values(parent.wholeSpells ?? {}))
+    {
+        for(let [key, s] of Object.entries(level ?? {}))
+        {
+            if(key != "hold" && (key.toLowerCase() == target || String(s?.["name"] ?? "").toLowerCase() == target)){spell = s; break;}
+        }
+        if(spell){break;}
+    }
+
+    if(!spell)
+    {
+        let link = `https://roll20.net/compendium/dnd5e/${encodeURIComponent(toTitleCase(target))}`;
+        showPopup({boxClass: "popupTall", title: toTitleCase(target), html: `<iframe class="popupFrame" src="${link}" title="spell"></iframe>`});
+        return;
+    }
+
+    let line = (label, v) => `<p class="card-text">${label}: ${v ?? ""}</p>`;
+    showPopup({boxClass: "popupSpell", html:
+        `<div class="card-body notes">
+            <h5 class="card-title">${spell["name"]}</h5>
+            ${line("Cast Time", spell["castTime"])}
+            ${line("Range", spell["range"])}
+            ${line("Components", spell["components"])}
+            ${line("Duration", spell["duration"])}
+            ${spell["concentration"] == "true" ? `<p class="card-text">Concentration</p>` : ""}
+            <p class="card-text">${spell["description"]}</p>
+        </div>`});
+}
 
 /**
  * Fills every class="stat" field from the saved character. Calculated fields (spell attack
