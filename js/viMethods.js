@@ -22,6 +22,7 @@ import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.15.0/firebas
 import { getDatabase, ref, set, get, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js';
 import { getStorage, uploadBytes, getDownloadURL, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
+import { descriptionHtml } from './spellText.js';
 
 // Firebase project settings. Every page that imports this file shares this one connection.
 // (Exported so the DM site can open a second connection to create logins without
@@ -750,10 +751,11 @@ export function sampleStats(chars)
  * character sheet, is shown full size): a framed box over a dimmed page, buttons at the
  * bottom in the middle. Clicking the dim area or pressing Esc closes it.
  *   title, message (plain text), html (trusted markup from the site's own data),
- *   boxClass (extra class for the box, e.g. "popupTall"), buttons: [{label, value, primary}]
+ *   boxClass (extra class for the box, e.g. "popupTall"), buttons: [{label, value, primary}],
+ *   stayOpen (true: clicking the dim area or Esc doesn't close it, e.g. the spell editor)
  * Resolves with the pressed button's value (null when closed another way).
  */
-export function showPopup({title = "", message = "", html = "", boxClass = "", input = null, buttons = [{label: "Done", value: true, primary: true}]} = {})
+export function showPopup({title = "", message = "", html = "", boxClass = "", input = null, buttons = [{label: "Done", value: true, primary: true}], stayOpen = false} = {})
 {
     let doc = document;
     try{if(window.top.document.body){doc = window.top.document;}}catch(e){}
@@ -783,7 +785,7 @@ export function showPopup({title = "", message = "", html = "", boxClass = "", i
         let primaryValue = () => {let b = buttons.find((b) => b.primary); return field ? field.value : b?.value;};
         let keys = (e) =>
         {
-            if(e.key == "Escape"){e.preventDefault(); e.stopPropagation(); close(null);}
+            if(e.key == "Escape" && !stayOpen){e.preventDefault(); e.stopPropagation(); close(null);}
             else if(e.key == "Enter" && field && doc.activeElement == field){e.preventDefault(); close(primaryValue());}
         };
 
@@ -796,7 +798,7 @@ export function showPopup({title = "", message = "", html = "", boxClass = "", i
         }
         box.appendChild(row);
 
-        backdrop.onclick = (e) => {if(e.target == backdrop){close(null);}};
+        backdrop.onclick = (e) => {if(e.target == backdrop && !stayOpen){close(null);}}; //stayOpen: only its own buttons close it
         backdrop.appendChild(box);
         doc.body.appendChild(backdrop);
         doc.addEventListener("keydown", keys, true);
@@ -953,7 +955,7 @@ export async function showSpellCard(spell, {onEdit} = {})
             ${line("Components", spell["components"])}
             ${line("Duration", spell["duration"])}
             ${spell["concentration"] == "true" ? `<p class="card-text">Concentration</p>` : ""}
-            <p class="card-text">${spell["description"]}</p>
+            ${descriptionHtml(spell["description"])}
         </div>`});
     if(choice == "edit"){onEdit();}
 }
