@@ -24,7 +24,7 @@
 
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
 import { onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-auth.js'; 
-import { auth, database, toTitleCase, setDoc, dbRef, character, SPELL_SERVICE, mergeSpells } from './js/viMethods.js';
+import { auth, database, toTitleCase, setDoc, dbRef, character, SPELL_SERVICE, mergeSpells, mergeAbilities } from './js/viMethods.js';
 import { setMode, setWholeDB, setWholeTO, setWholeSummons, setWholeBubbles, setWholeRulers } from './src/map.js';
 import { setWholeInteractive, setWholeCharCont, setWholeQuests } from './js/mapControler.js';
 
@@ -62,7 +62,12 @@ onAuthStateChanged(auth, (user) =>
 });
 
 // Static rules data (actions, spells, preset rolls) loaded once from this site's src/ folder.
-fetch('src/actions.json').then(res => res.json()).then((json) => wholeActions = json);
+fetch('src/actions.json').then(res => res.json()).then((json) =>
+{
+    wholeActions = json;
+    //Plus the abilities the Worker has added from Open5e (see findAbility in viMethods.js)
+    return fetch(`${SPELL_SERVICE}/abilities`).then(res => res.ok ? res.json() : {}).then((extra) => mergeAbilities(wholeActions, extra)).catch(() => {});
+});
 fetch('src/spells.json').then(res => res.json()).then((json) =>
 {
     wholeSpells = json;

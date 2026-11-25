@@ -867,6 +867,61 @@ export async function findSpell(name, spells = window.top.parent.wholeSpells)
     }
 }
 
+/** Adds abilities ({tag: {Name: ability}}) that aren't in `target` yet. */
+export function mergeAbilities(target, extra)
+{
+    for(let [tag, list] of Object.entries(extra ?? {}))
+    {
+        for(let [name, ability] of Object.entries(list ?? {}))
+        {
+            if(!findAbilityIn(target, name)){(target[tag] ??= {})[name] = ability;}
+        }
+    }
+    return target;
+}
+
+/** The ability with this exact name (any tag, any capitalisation): {tag, key, ability} or null. */
+export function findAbilityIn(actions, name)
+{
+    let target = String(name ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+    if(!target){return null;}
+
+    for(let [tag, list] of Object.entries(actions ?? {}))
+    {
+        for(let [key, ability] of Object.entries(list ?? {}))
+        {
+            if(key != "hold" && key.toLowerCase() == target){return {tag, key, ability};}
+        }
+    }
+    return null;
+}
+
+/**
+ * Finds an ability through the Worker: a class feature on Open5e (`cls` first, then any
+ * class) or a feat (filed under Misc). It's added to `actions` and kept for next time.
+ * Resolves {tag, key, ability} or null.
+ */
+export async function findAbility(name, cls, actions = window.top.parent.wholeActions)
+{
+    let have = findAbilityIn(actions, name);
+    if(have){return have;}
+
+    try
+    {
+        let response = await fetch(`${SPELL_SERVICE}/ability?name=${encodeURIComponent(String(name).trim())}&class=${encodeURIComponent(cls ?? "")}`);
+        if(!response.ok){return null;}
+        let data = await response.json();
+        if(!data?.ability){return null;}
+        if(actions){(actions[data.tag] ??= {})[data.ability.name] = data.ability;}
+        return {tag: data.tag, key: data.ability.name, ability: data.ability};
+    }
+    catch(error)
+    {
+        console.error("Ability lookup failed:", error);
+        return null;
+    }
+}
+
 /** The spell card popup (the eye icons): the spell's details on parchment. */
 export function showSpellCard(spell)
 {

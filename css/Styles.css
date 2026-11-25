@@ -2400,3 +2400,7 @@ body:not(.embedded) #cover #favFoldersQ { grid-row: 5; grid-column: 1 / -1; widt
 #monsterSheet .monsterEmpty { min-height: 1.3em; }
 #monsterSheet .monsterSpell { cursor: pointer; text-decoration: underline dotted; }
 #monsterSheet .monsterSpell:hover { color: var(--brass); }
+
+/* Under the spell/ability search bar: lookup results (mapControler.js searchLookup) */
+#searchNote { margin: 4px 0 0; min-height: 1.2em; font-size: .95rem; color: var(--brass, #c9a24a); }
+#searchNote.error { color: #ff8a80; }

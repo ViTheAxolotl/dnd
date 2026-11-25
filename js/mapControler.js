@@ -27,7 +27,7 @@
 "use strict";
 
 import { ref, onValue } from 'https://www.gstatic.com/firebasejs/9.15.0/firebase-database.js';
-import { toTitleCase, database, createCard, setDoc, deleteDoc, placeBefore, createLabel, clenseInput, reload, setMapValue, quickAction, setQuickAction, skillDecrypt, sendDiscordMessage, storage, tokenCategory, makeCategoryFilter, CHARACTER_CATEGORY, dbRef, showPopup } from './viMethods.js';
+import { toTitleCase, database, createCard, setDoc, deleteDoc, placeBefore, createLabel, clenseInput, reload, setMapValue, quickAction, setQuickAction, skillDecrypt, sendDiscordMessage, storage, tokenCategory, makeCategoryFilter, CHARACTER_CATEGORY, dbRef, showPopup, findSpell, findAbility } from './viMethods.js';
 import { uploadBytes, getDownloadURL, ref as sRef } from "https://www.gstatic.com/firebasejs/9.15.0/firebase-storage.js";
 import imageCompression from 'https://cdn.jsdelivr.net/npm/browser-image-compression@2.0.2/dist/browser-image-compression.mjs';
 
@@ -206,6 +206,7 @@ function init()
     let searchTimer;
     searchBar[0].oninput = () => {searchFromCard = false; clearTimeout(searchTimer); searchTimer = setTimeout(handleSearch, 120);};
     searchBar[0].onchange = () => {clearTimeout(searchTimer); handleSearch();};
+    searchBar[0].onkeydown = (e) => {if(e.key == "Enter"){searchLookup();}}; //Not in the list: look it up on Open5e
 
     for(let arrow of arrows)
     {
@@ -1783,6 +1784,87 @@ function handleSearch()
     }
 
     for(let key of document.getElementsByClassName("card-body")){key.onclick = handleCardClick;} //Changes onclick to what it needs to be
+}
+
+/**
+ * A line under the search bar for lookup results ("Looking up…", "Added Acid Arrow…").
+ */
+function searchNote(text, isError)
+{
+    let note = document.getElementById("searchNote");
+
+    if(!note)
+    {
+        note = document.createElement("p");
+        note.id = "searchNote";
+        document.getElementById("searchDiv").appendChild(note);
+    }
+
+    note.textContent = text;
+    note.classList.toggle("error", !!isError);
+}
+
+/**
+ * Enter in the search bar. If nothing in the list being viewed matches, it looks further:
+ * another spell level / ability tab that has it, then Open5e through the Worker, which adds
+ * it to the list (and keeps it for both sites). Then it shows that level / tab with the
+ * spell or ability in it. Not used in the favourites (they only show what's been starred).
+ */
+async function searchLookup()
+{
+    let term = searchBar[0].value.replace(/\s+/g, " ").trim();
+    let lower = term.toLowerCase();
+    if(favorite || (!spellLevel && !curClass)){return;}
+    if(term.length < 3){searchNote("Type at least 3 letters, then press Enter to look it up.", true); return;}
+
+    let all = spellLevel ? window.wholeSpells : window.wholeActions;
+    let here = all?.[spellLevel ?? curClass] ?? {};
+    if(Object.keys(here).some((key) => key.toLowerCase().includes(lower))){searchNote(""); return;} //Already showing
+
+    //Another level / tab that has it
+    let elsewhere = Object.entries(all ?? {}).find(([group, list]) => Object.keys(list ?? {}).some((key) => key != "hold" && key.toLowerCase().includes(lower)));
+    let found = null;
+    let note = "";
+
+    if(elsewhere)
+    {
+        found = {group: elsewhere[0], name: Object.keys(elsewhere[1]).find((key) => key.toLowerCase().includes(lower))};
+        note = `Found ${found.name} in ${spellLevel ? (found.group == "0" ? "Cantrips" : `Lvl ${found.group}`) : found.group}.`;
+    }
+
+    else
+    {
+        searchNote(`Looking up "${term}"…`);
+        searchBar[0].disabled = true;
+
+        try
+        {
+            if(spellLevel)
+            {
+                let spell = await findSpell(term, window.wholeSpells);
+                if(spell){found = {group: spell.level, name: spell.key}; note = `Added ${spell.key} (${spell.level == "0" ? "cantrip" : `level ${spell.level}`}) from Open5e.`;}
+            }
+
+            else
+            {
+                let ability = await findAbility(term, curClass, window.wholeActions);
+                if(ability){found = {group: ability.tag, name: ability.key}; note = `Added ${ability.key} (${ability.tag}) from Open5e.`;}
+            }
+        }
+
+        finally{searchBar[0].disabled = false;}
+    }
+
+    if(!found){searchNote(`Couldn't find "${term}" in the list or on Open5e.`, true); return;}
+
+    searchFromCard = false;
+    searchBar[0].value = found.name;
+    let buttons = [...(spellLevel ? spellBtn : actionBtn)].filter((button) => !button.classList.contains("create"));
+    let tab = buttons.find((button) => button.name == found.group);
+
+    if(tab && found.group != (spellLevel ?? curClass)){tab.click();} //Shows that list, filtered by the search
+    else{handleSearch();}
+    searchNote(note);
 }
 
 /**
